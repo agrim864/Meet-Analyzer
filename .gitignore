@@ -1,0 +1,78 @@
+# Secrets and local configuration
+.env
+*.env
+batch_mode/.env
+real_time_mode/.env
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+
+# Python/runtime
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.runtime/
+.gradio/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+modal_deploy_err.txt
+modal_deploy_out.txt
+temp_modal_check.py
+tmp_*.png
+real_time_mode/frontend_after_start.png
+real_time_mode/frontend_debug.png
+real_time_mode/tmp_frontend_check.js
+
+# Batch outputs and cluster job artifacts
+batch_mode/outputs/
+batch_mode/tmp/
+batch_mode/cluster_jobs/
+batch_mode/cursor_probe*/
+real_time_mode/validation_runs/
+real_time_mode/validation_runs_gpu/
+docs/__pycache__/
+
+# Video/data artifacts
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.webm
+out_full/
+/models/
+/weights/
+
+# Hugging Face caches
+**/.cache/
+
+# Large model files that exceed GitHub's normal file limits.
+# The README explains how to download these after cloning.
+**/icon_caption/model.safetensors
+real_time_mode/vendor/OmniParser/weights/icon_detect/model.pt
+real_time_mode/vendor/OmniParser/weights/icon_detect/model.yaml
+real_time_mode/vendor/OmniParser/weights/icon_detect/train_args.yaml
+real_time_mode/vendor/OmniParser/weights/icon_caption/config.json
+real_time_mode/vendor/OmniParser/weights/icon_caption/generation_config.json
+real_time_mode/cursor_class_best.pt
+batch_mode/weights/
+
+# Legacy/unused detector weights
+rtdetr-l.pt
+real_time_mode/rtdetr-l.pt
+
+# IDE/local OS noise
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

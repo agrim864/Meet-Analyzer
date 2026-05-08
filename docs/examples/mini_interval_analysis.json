@@ -1,0 +1,1052 @@
+{
+  "frame_events": [
+    {
+      "event_id": "mini_0002",
+      "timestamp_sec": 2.0,
+      "mode": "demo",
+      "summary": "ICAPP presentation interface with left navigation, central title slide for CSE 643 Sec A AI HW2 Kabaddi Game, and a right video/transcript/chat panel.",
+      "visual_payload": {
+        "mode": "demo",
+        "change_type": "initial",
+        "visual_change": true,
+        "page_summary": "ICAPP web presentation interface. Left sidebar: My Application, My Project Tasks, My Course Tasks, Logout. Main content: title slide CSE 643 Sec A AI HW2 Kabaddi Game by Ashima Jain. Right side: webcam, transcript, and message input.",
+        "screen_structure": {
+          "interface_type": "presentation/evaluation web app",
+          "layout_description": "header, left sidebar, main content area, right transcript/chat panel, footer screen-share controls"
+        },
+        "macro_layout": [
+          {
+            "id": "group_header",
+            "type": "header",
+            "label": "header",
+            "bbox": [
+              0,
+              0,
+              854,
+              133
+            ],
+            "confidence": 0.8822900366783142,
+            "source": "uitag-yolo"
+          },
+          {
+            "id": "group_left_sidebar",
+            "type": "left_sidebar",
+            "label": "left_sidebar",
+            "bbox": [
+              0,
+              133,
+              122,
+              435
+            ],
+            "confidence": 0.8041663019040997,
+            "source": "uitag-yolo"
+          },
+          {
+            "id": "group_main_content",
+            "type": "main_content",
+            "label": "main_content",
+            "bbox": [
+              122,
+              133,
+              854,
+              435
+            ],
+            "confidence": 0.8822900366783142,
+            "source": "uitag-yolo-coverage"
+          },
+          {
+            "id": "group_footer",
+            "type": "footer",
+            "label": "footer",
+            "bbox": [
+              0,
+              435,
+              854,
+              534
+            ],
+            "confidence": 0.6416277297654253,
+            "source": "uitag-yolo-lowconf"
+          }
+        ],
+        "cursor_target": {
+          "element_text": null,
+          "parent_macro_region_type": "main_content",
+          "relation": "inside_region"
+        },
+        "cursor_action": "The cursor is inside the main content area."
+      },
+      "cursor": {
+        "detected": true,
+        "hotspot": [
+          502,
+          437
+        ],
+        "method": "visual_inspection"
+      }
+    },
+    {
+      "event_id": "mini_0015",
+      "timestamp_sec": 15.0,
+      "mode": "demo",
+      "summary": "The presenter remains on the title slide after the evaluator asks them to begin; upload controls and microphone/share controls are visible.",
+      "visual_payload": {
+        "mode": "demo",
+        "change_type": "small_region_change",
+        "visual_change": true,
+        "page_summary": "Still on the Kabaddi Game title slide. A file chooser/upload area and microphone-active banner appear near the top, with screen-sharing controls at the bottom.",
+        "screen_structure": {
+          "interface_type": "presentation/evaluation web app",
+          "layout_description": "header, left sidebar, main content area, right transcript/chat panel"
+        },
+        "macro_layout": [
+          {
+            "id": "group_header",
+            "type": "header",
+            "label": "header",
+            "bbox": [
+              0,
+              0,
+              854,
+              133
+            ],
+            "confidence": 0.8588123631477356,
+            "source": "uitag-yolo"
+          },
+          {
+            "id": "group_left_sidebar",
+            "type": "left_sidebar",
+            "label": "left_sidebar",
+            "bbox": [
+              0,
+              133,
+              121,
+              534
+            ],
+            "confidence": 0.8761920249060299,
+            "source": "uitag-yolo"
+          },
+          {
+            "id": "group_main_content",
+            "type": "main_content",
+            "label": "main_content",
+            "bbox": [
+              121,
+              133,
+              717,
+              534
+            ],
+            "confidence": 0.8761920249060299,
+            "source": "uitag-yolo-coverage"
+          },
+          {
+            "id": "group_right_sidebar",
+            "type": "right_sidebar",
+            "label": "right_sidebar",
+            "bbox": [
+              717,
+              133,
+              854,
+              534
+            ],
+            "confidence": 0.43959447978587635,
+            "source": "uitag-yolo-lowconf"
+          }
+        ],
+        "cursor_target": {
+          "element_text": null,
+          "parent_macro_region_type": "main_content",
+          "relation": "inside_region"
+        },
+        "cursor_action": "The cursor is inside the slide area as the presenter begins."
+      },
+      "cursor": {
+        "detected": true,
+        "hotspot": [
+          502,
+          437
+        ],
+        "method": "visual_inspection"
+      }
+    },
+    {
+      "event_id": "mini_0058",
+      "timestamp_sec": 58.0,
+      "mode": "demo",
+      "summary": "The screen navigates to page 3, Game Rules, listing grid field, gold treasure, player movement, capture mechanics, and winning condition.",
+      "visual_payload": {
+        "mode": "demo",
+        "change_type": "navigation_or_page_change",
+        "visual_change": true,
+        "page_summary": "The main slide changes to Game Rules. It explains the grid-based field, gold treasure, player actions, capture mechanics, and the winning condition. Previous and Next buttons are visible below the slide.",
+        "screen_structure": {
+          "interface_type": "presentation/evaluation web app",
+          "layout_description": "header, left sidebar, main content area, right transcript/chat panel, footer controls"
+        },
+        "macro_layout": [
+          {
+            "id": "group_header",
+            "type": "header",
+            "label": "header",
+            "bbox": [
+              0,
+              0,
+              854,
+              133
+            ],
+            "confidence": 0.7448939990997314,
+            "source": "uitag-yolo-lowconf"
+          },
+          {
+            "id": "group_left_sidebar",
+            "type": "left_sidebar",
+            "label": "left_sidebar",
+            "bbox": [
+              0,
+              133,
+              120,
+              492
+            ],
+            "confidence": 0.3789825467447217,
+            "source": "uitag-yolo-lowconf"
+          },
+          {
+            "id": "group_main_content",
+            "type": "main_content",
+            "label": "main_content",
+            "bbox": [
+              120,
+              133,
+              714,
+              492
+            ],
+            "confidence": 0.7448939990997314,
+            "source": "uitag-yolo-coverage"
+          },
+          {
+            "id": "group_right_sidebar",
+            "type": "right_sidebar",
+            "label": "right_sidebar",
+            "bbox": [
+              714,
+              133,
+              854,
+              492
+            ],
+            "confidence": 0.47114968536944873,
+            "source": "uitag-yolo-lowconf"
+          },
+          {
+            "id": "group_footer",
+            "type": "footer",
+            "label": "footer",
+            "bbox": [
+              0,
+              492,
+              854,
+              534
+            ],
+            "confidence": 0.25118526115769246,
+            "source": "uitag-yolo-lowconf"
+          }
+        ],
+        "cursor_target": {
+          "element_text": "Next",
+          "parent_macro_region_type": "main_content",
+          "relation": "near"
+        },
+        "cursor_action": "The cursor is near the slide navigation controls, followed by a page change."
+      },
+      "cursor": {
+        "detected": true,
+        "hotspot": [
+          435,
+          337
+        ],
+        "method": "visual_inspection"
+      }
+    },
+    {
+      "event_id": "mini_0100",
+      "timestamp_sec": 100.0,
+      "mode": "demo",
+      "summary": "The screen moves to page 4, Simulation Environment, explaining Python movement/legal actions, gold pickup and return, capture/removal, and real-time position updates.",
+      "visual_payload": {
+        "mode": "demo",
+        "change_type": "navigation_or_page_change",
+        "visual_change": true,
+        "page_summary": "The main slide changes to Simulation Environment. It describes the Python-based simulation environment, legal action generation, goal pickup and return logic, capture/removal of players, two modes of play, and step-wise visualization.",
+        "screen_structure": {
+          "interface_type": "presentation/evaluation web app",
+          "layout_description": "header, left sidebar, main content area, right transcript/chat panel, footer controls"
+        },
+        "macro_layout": [
+          {
+            "id": "group_header",
+            "type": "header",
+            "label": "header",
+            "bbox": [
+              0,
+              0,
+              854,
+              133
+            ],
+            "confidence": 0.9061578822135925,
+            "source": "uitag-yolo"
+          },
+          {
+            "id": "group_left_sidebar",
+            "type": "left_sidebar",
+            "label": "left_sidebar",
+            "bbox": [
+              0,
+              133,
+              120,
+              492
+            ],
+            "confidence": 0.9020498024479726,
+            "source": "uitag-yolo"
+          },
+          {
+            "id": "group_main_content",
+            "type": "main_content",
+            "label": "main_content",
+            "bbox": [
+              120,
+              133,
+              713,
+              492
+            ],
+            "confidence": 0.9061578822135925,
+            "source": "uitag-yolo-coverage"
+          },
+          {
+            "id": "group_right_sidebar",
+            "type": "right_sidebar",
+            "label": "right_sidebar",
+            "bbox": [
+              713,
+              133,
+              854,
+              492
+            ],
+            "confidence": 0.4616176009579991,
+            "source": "uitag-yolo-lowconf"
+          },
+          {
+            "id": "group_footer",
+            "type": "footer",
+            "label": "footer",
+            "bbox": [
+              0,
+              492,
+              854,
+              534
+            ],
+            "confidence": 0.26840916792737796,
+            "source": "uitag-yolo-lowconf"
+          }
+        ],
+        "cursor_target": {
+          "element_text": null,
+          "parent_macro_region_type": "main_content",
+          "relation": "inside_region"
+        },
+        "cursor_action": "The cursor remains in the main slide area after the page change."
+      },
+      "cursor": {
+        "detected": true,
+        "hotspot": [
+          469,
+          314
+        ],
+        "method": "visual_inspection"
+      }
+    }
+  ],
+  "transcript_segments": [
+    {
+      "start": 2.2,
+      "end": 3.8,
+      "speaker": "evaluator",
+      "text": "I am an evaluator."
+    },
+    {
+      "start": 4.0,
+      "end": 9.0,
+      "speaker": "evaluator",
+      "text": "I'll be evaluating your presentation based on the project and task requirements."
+    },
+    {
+      "start": 9.7,
+      "end": 11.6,
+      "speaker": "evaluator",
+      "text": "Please begin when you're ready."
+    },
+    {
+      "start": 11.8,
+      "end": 14.5,
+      "speaker": "evaluator",
+      "text": "Note, this session is being recorded."
+    },
+    {
+      "start": 15.5,
+      "end": 21.3,
+      "speaker": "presenter",
+      "text": "Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game."
+    },
+    {
+      "start": 23.6,
+      "end": 38.4,
+      "speaker": "presenter",
+      "text": "I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team."
+    },
+    {
+      "start": 42.9,
+      "end": 54.0,
+      "speaker": "presenter",
+      "text": "There are two modes of playing this game, turn by turn and simultaneous."
+    },
+    {
+      "start": 56.1,
+      "end": 58.2,
+      "speaker": "presenter",
+      "text": "The game rules are as follows."
+    },
+    {
+      "start": 58.4,
+      "end": 66.2,
+      "speaker": "presenter",
+      "text": "There is a grid based field divided into left and right halves, and gold treasure in each team half."
+    },
+    {
+      "start": 71.6,
+      "end": 80.0,
+      "speaker": "presenter",
+      "text": "Players move in four possible directions: up, down, left, and right."
+    },
+    {
+      "start": 84.1,
+      "end": 95.8,
+      "speaker": "presenter",
+      "text": "A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold."
+    },
+    {
+      "start": 97.4,
+      "end": 105.7,
+      "speaker": "presenter",
+      "text": "The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic."
+    }
+  ],
+  "topic_units": [
+    {
+      "start": 2.0,
+      "end": 105.7,
+      "dominant_class": "demo",
+      "event_ids": [
+        "mini_0002",
+        "mini_0015",
+        "mini_0058",
+        "mini_0100"
+      ],
+      "unit_summary": "The evaluator starts the recorded assessment and the presenter begins a Kabaddi Game assignment walkthrough, moving from the title slide to game rules and simulation environment slides.",
+      "transcript_text": "I am an evaluator. I'll be evaluating your presentation based on the project and task requirements. Please begin when you're ready. Note, this session is being recorded. Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game. I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team. There are two modes of playing this game, turn by turn and simultaneous. The game rules are as follows. There is a grid based field divided into left and right halves, and gold treasure in each team half. Players move in four possible directions: up, down, left, and right. A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold. The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic.",
+      "screen_summaries": [
+        "ICAPP presentation interface with left navigation, central title slide for CSE 643 Sec A AI HW2 Kabaddi Game, and a right video/transcript/chat panel.",
+        "The presenter remains on the title slide after the evaluator asks them to begin; upload controls and microphone/share controls are visible.",
+        "The screen navigates to page 3, Game Rules, listing grid field, gold treasure, player movement, capture mechanics, and winning condition.",
+        "The screen moves to page 4, Simulation Environment, explaining Python movement/legal actions, gold pickup and return, capture/removal, and real-time position updates."
+      ],
+      "action_summaries": [
+        "Cursor stays in the main slide area; movement near slide navigation is followed by page changes from title to game rules and simulation environment."
+      ]
+    }
+  ],
+  "topic_clusters": [],
+  "sections": {
+    "report_title": "mini-interval-segment-smoke",
+    "meeting_narrative_section": {
+      "prewritten_markdown": "This section follows the meeting in chronological order, combining what was visible on screen with what was said.\n1. **00:02.0-01:45.7 (demo)**\n   Overview: The evaluator starts the recorded assessment and the presenter begins a Kabaddi Game assignment walkthrough, moving from the title slide to game rules and simulation environment slides.\n   Screen flow:\n   - 00:02.0: ICAPP presentation interface with left navigation, central title slide for CSE 643 Sec A AI HW2 Kabaddi Game, and a right video/transcript/chat panel. Cursor: inside the main content. This was followed by a small region change change.\n   - 00:15.0: The presenter remains on the title slide after the evaluator asks them to begin; upload controls and microphone/share controls are visible. Cursor: inside the main content. This was followed by a navigation or page change change.\n   - 00:58.0: The screen navigates to page 3, Game Rules, listing grid field, gold treasure, player movement, capture mechanics, and winning condition. Cursor: near on Next in the main content. This was followed by a navigation or page change change.\n   - 01:40.0: The screen moves to page 4, Simulation Environment, explaining Python movement/legal actions, gold pickup and return, capture/removal, and real-time position updates. Cursor: inside the main content.\n   Transcript: I am an evaluator. I'll be evaluating your presentation based on the project and task requirements. Please begin when you're ready. Note, this session is being recorded. Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game. I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team. There are two modes of playing this game, turn by turn and simultaneous. The game rules are as follows. There is a grid based field divided into left and right halves, and gold treasure in each team half. Players move in four possible directions: up, down, left, and right. A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold. The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic.",
+      "narrative_units": [
+        {
+          "index": 1,
+          "time_range": "00:02.0-01:45.7",
+          "start": 2.0,
+          "end": 105.7,
+          "mode": "demo",
+          "overview": "The evaluator starts the recorded assessment and the presenter begins a Kabaddi Game assignment walkthrough, moving from the title slide to game rules and simulation environment slides.",
+          "screen_flow": [
+            "00:02.0: ICAPP presentation interface with left navigation, central title slide for CSE 643 Sec A AI HW2 Kabaddi Game, and a right video/transcript/chat panel. Cursor: inside the main content. This was followed by a small region change change.",
+            "00:15.0: The presenter remains on the title slide after the evaluator asks them to begin; upload controls and microphone/share controls are visible. Cursor: inside the main content. This was followed by a navigation or page change change.",
+            "00:58.0: The screen navigates to page 3, Game Rules, listing grid field, gold treasure, player movement, capture mechanics, and winning condition. Cursor: near on Next in the main content. This was followed by a navigation or page change change.",
+            "01:40.0: The screen moves to page 4, Simulation Environment, explaining Python movement/legal actions, gold pickup and return, capture/removal, and real-time position updates. Cursor: inside the main content."
+          ],
+          "transcript": "I am an evaluator. I'll be evaluating your presentation based on the project and task requirements. Please begin when you're ready. Note, this session is being recorded. Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game. I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team. There are two modes of playing this game, turn by turn and simultaneous. The game rules are as follows. There is a grid based field divided into left and right halves, and gold treasure in each team half. Players move in four possible directions: up, down, left, and right. A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold. The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic."
+        }
+      ]
+    },
+    "demo_section": {
+      "events": [
+        {
+          "event_id": "mini_0002",
+          "timestamp_sec": 2.0,
+          "mode": "demo",
+          "summary": "ICAPP presentation interface with left navigation, central title slide for CSE 643 Sec A AI HW2 Kabaddi Game, and a right video/transcript/chat panel.",
+          "visual_payload": {
+            "mode": "demo",
+            "change_type": "initial",
+            "visual_change": true,
+            "page_summary": "ICAPP web presentation interface. Left sidebar: My Application, My Project Tasks, My Course Tasks, Logout. Main content: title slide CSE 643 Sec A AI HW2 Kabaddi Game by Ashima Jain. Right side: webcam, transcript, and message input.",
+            "screen_structure": {
+              "interface_type": "presentation/evaluation web app",
+              "layout_description": "header, left sidebar, main content area, right transcript/chat panel, footer screen-share controls"
+            },
+            "macro_layout": [
+              {
+                "id": "group_header",
+                "type": "header",
+                "label": "header",
+                "bbox": [
+                  0,
+                  0,
+                  854,
+                  133
+                ],
+                "confidence": 0.8822900366783142,
+                "source": "uitag-yolo"
+              },
+              {
+                "id": "group_left_sidebar",
+                "type": "left_sidebar",
+                "label": "left_sidebar",
+                "bbox": [
+                  0,
+                  133,
+                  122,
+                  435
+                ],
+                "confidence": 0.8041663019040997,
+                "source": "uitag-yolo"
+              },
+              {
+                "id": "group_main_content",
+                "type": "main_content",
+                "label": "main_content",
+                "bbox": [
+                  122,
+                  133,
+                  854,
+                  435
+                ],
+                "confidence": 0.8822900366783142,
+                "source": "uitag-yolo-coverage"
+              },
+              {
+                "id": "group_footer",
+                "type": "footer",
+                "label": "footer",
+                "bbox": [
+                  0,
+                  435,
+                  854,
+                  534
+                ],
+                "confidence": 0.6416277297654253,
+                "source": "uitag-yolo-lowconf"
+              }
+            ],
+            "cursor_target": {
+              "element_text": null,
+              "parent_macro_region_type": "main_content",
+              "relation": "inside_region"
+            },
+            "cursor_action": "The cursor is inside the main content area."
+          },
+          "cursor": {
+            "detected": true,
+            "hotspot": [
+              502,
+              437
+            ],
+            "method": "visual_inspection"
+          }
+        },
+        {
+          "event_id": "mini_0015",
+          "timestamp_sec": 15.0,
+          "mode": "demo",
+          "summary": "The presenter remains on the title slide after the evaluator asks them to begin; upload controls and microphone/share controls are visible.",
+          "visual_payload": {
+            "mode": "demo",
+            "change_type": "small_region_change",
+            "visual_change": true,
+            "page_summary": "Still on the Kabaddi Game title slide. A file chooser/upload area and microphone-active banner appear near the top, with screen-sharing controls at the bottom.",
+            "screen_structure": {
+              "interface_type": "presentation/evaluation web app",
+              "layout_description": "header, left sidebar, main content area, right transcript/chat panel"
+            },
+            "macro_layout": [
+              {
+                "id": "group_header",
+                "type": "header",
+                "label": "header",
+                "bbox": [
+                  0,
+                  0,
+                  854,
+                  133
+                ],
+                "confidence": 0.8588123631477356,
+                "source": "uitag-yolo"
+              },
+              {
+                "id": "group_left_sidebar",
+                "type": "left_sidebar",
+                "label": "left_sidebar",
+                "bbox": [
+                  0,
+                  133,
+                  121,
+                  534
+                ],
+                "confidence": 0.8761920249060299,
+                "source": "uitag-yolo"
+              },
+              {
+                "id": "group_main_content",
+                "type": "main_content",
+                "label": "main_content",
+                "bbox": [
+                  121,
+                  133,
+                  717,
+                  534
+                ],
+                "confidence": 0.8761920249060299,
+                "source": "uitag-yolo-coverage"
+              },
+              {
+                "id": "group_right_sidebar",
+                "type": "right_sidebar",
+                "label": "right_sidebar",
+                "bbox": [
+                  717,
+                  133,
+                  854,
+                  534
+                ],
+                "confidence": 0.43959447978587635,
+                "source": "uitag-yolo-lowconf"
+              }
+            ],
+            "cursor_target": {
+              "element_text": null,
+              "parent_macro_region_type": "main_content",
+              "relation": "inside_region"
+            },
+            "cursor_action": "The cursor is inside the slide area as the presenter begins."
+          },
+          "cursor": {
+            "detected": true,
+            "hotspot": [
+              502,
+              437
+            ],
+            "method": "visual_inspection"
+          }
+        },
+        {
+          "event_id": "mini_0058",
+          "timestamp_sec": 58.0,
+          "mode": "demo",
+          "summary": "The screen navigates to page 3, Game Rules, listing grid field, gold treasure, player movement, capture mechanics, and winning condition.",
+          "visual_payload": {
+            "mode": "demo",
+            "change_type": "navigation_or_page_change",
+            "visual_change": true,
+            "page_summary": "The main slide changes to Game Rules. It explains the grid-based field, gold treasure, player actions, capture mechanics, and the winning condition. Previous and Next buttons are visible below the slide.",
+            "screen_structure": {
+              "interface_type": "presentation/evaluation web app",
+              "layout_description": "header, left sidebar, main content area, right transcript/chat panel, footer controls"
+            },
+            "macro_layout": [
+              {
+                "id": "group_header",
+                "type": "header",
+                "label": "header",
+                "bbox": [
+                  0,
+                  0,
+                  854,
+                  133
+                ],
+                "confidence": 0.7448939990997314,
+                "source": "uitag-yolo-lowconf"
+              },
+              {
+                "id": "group_left_sidebar",
+                "type": "left_sidebar",
+                "label": "left_sidebar",
+                "bbox": [
+                  0,
+                  133,
+                  120,
+                  492
+                ],
+                "confidence": 0.3789825467447217,
+                "source": "uitag-yolo-lowconf"
+              },
+              {
+                "id": "group_main_content",
+                "type": "main_content",
+                "label": "main_content",
+                "bbox": [
+                  120,
+                  133,
+                  714,
+                  492
+                ],
+                "confidence": 0.7448939990997314,
+                "source": "uitag-yolo-coverage"
+              },
+              {
+                "id": "group_right_sidebar",
+                "type": "right_sidebar",
+                "label": "right_sidebar",
+                "bbox": [
+                  714,
+                  133,
+                  854,
+                  492
+                ],
+                "confidence": 0.47114968536944873,
+                "source": "uitag-yolo-lowconf"
+              },
+              {
+                "id": "group_footer",
+                "type": "footer",
+                "label": "footer",
+                "bbox": [
+                  0,
+                  492,
+                  854,
+                  534
+                ],
+                "confidence": 0.25118526115769246,
+                "source": "uitag-yolo-lowconf"
+              }
+            ],
+            "cursor_target": {
+              "element_text": "Next",
+              "parent_macro_region_type": "main_content",
+              "relation": "near"
+            },
+            "cursor_action": "The cursor is near the slide navigation controls, followed by a page change."
+          },
+          "cursor": {
+            "detected": true,
+            "hotspot": [
+              435,
+              337
+            ],
+            "method": "visual_inspection"
+          }
+        },
+        {
+          "event_id": "mini_0100",
+          "timestamp_sec": 100.0,
+          "mode": "demo",
+          "summary": "The screen moves to page 4, Simulation Environment, explaining Python movement/legal actions, gold pickup and return, capture/removal, and real-time position updates.",
+          "visual_payload": {
+            "mode": "demo",
+            "change_type": "navigation_or_page_change",
+            "visual_change": true,
+            "page_summary": "The main slide changes to Simulation Environment. It describes the Python-based simulation environment, legal action generation, goal pickup and return logic, capture/removal of players, two modes of play, and step-wise visualization.",
+            "screen_structure": {
+              "interface_type": "presentation/evaluation web app",
+              "layout_description": "header, left sidebar, main content area, right transcript/chat panel, footer controls"
+            },
+            "macro_layout": [
+              {
+                "id": "group_header",
+                "type": "header",
+                "label": "header",
+                "bbox": [
+                  0,
+                  0,
+                  854,
+                  133
+                ],
+                "confidence": 0.9061578822135925,
+                "source": "uitag-yolo"
+              },
+              {
+                "id": "group_left_sidebar",
+                "type": "left_sidebar",
+                "label": "left_sidebar",
+                "bbox": [
+                  0,
+                  133,
+                  120,
+                  492
+                ],
+                "confidence": 0.9020498024479726,
+                "source": "uitag-yolo"
+              },
+              {
+                "id": "group_main_content",
+                "type": "main_content",
+                "label": "main_content",
+                "bbox": [
+                  120,
+                  133,
+                  713,
+                  492
+                ],
+                "confidence": 0.9061578822135925,
+                "source": "uitag-yolo-coverage"
+              },
+              {
+                "id": "group_right_sidebar",
+                "type": "right_sidebar",
+                "label": "right_sidebar",
+                "bbox": [
+                  713,
+                  133,
+                  854,
+                  492
+                ],
+                "confidence": 0.4616176009579991,
+                "source": "uitag-yolo-lowconf"
+              },
+              {
+                "id": "group_footer",
+                "type": "footer",
+                "label": "footer",
+                "bbox": [
+                  0,
+                  492,
+                  854,
+                  534
+                ],
+                "confidence": 0.26840916792737796,
+                "source": "uitag-yolo-lowconf"
+              }
+            ],
+            "cursor_target": {
+              "element_text": null,
+              "parent_macro_region_type": "main_content",
+              "relation": "inside_region"
+            },
+            "cursor_action": "The cursor remains in the main slide area after the page change."
+          },
+          "cursor": {
+            "detected": true,
+            "hotspot": [
+              469,
+              314
+            ],
+            "method": "visual_inspection"
+          }
+        }
+      ],
+      "nearby_transcript": [
+        {
+          "start": 2.2,
+          "end": 3.8,
+          "speaker": "evaluator",
+          "text": "I am an evaluator."
+        },
+        {
+          "start": 4.0,
+          "end": 9.0,
+          "speaker": "evaluator",
+          "text": "I'll be evaluating your presentation based on the project and task requirements."
+        },
+        {
+          "start": 9.7,
+          "end": 11.6,
+          "speaker": "evaluator",
+          "text": "Please begin when you're ready."
+        },
+        {
+          "start": 11.8,
+          "end": 14.5,
+          "speaker": "evaluator",
+          "text": "Note, this session is being recorded."
+        },
+        {
+          "start": 15.5,
+          "end": 21.3,
+          "speaker": "presenter",
+          "text": "Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game."
+        },
+        {
+          "start": 23.6,
+          "end": 38.4,
+          "speaker": "presenter",
+          "text": "I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team."
+        },
+        {
+          "start": 42.9,
+          "end": 54.0,
+          "speaker": "presenter",
+          "text": "There are two modes of playing this game, turn by turn and simultaneous."
+        },
+        {
+          "start": 56.1,
+          "end": 58.2,
+          "speaker": "presenter",
+          "text": "The game rules are as follows."
+        },
+        {
+          "start": 58.4,
+          "end": 66.2,
+          "speaker": "presenter",
+          "text": "There is a grid based field divided into left and right halves, and gold treasure in each team half."
+        },
+        {
+          "start": 71.6,
+          "end": 80.0,
+          "speaker": "presenter",
+          "text": "Players move in four possible directions: up, down, left, and right."
+        },
+        {
+          "start": 84.1,
+          "end": 95.8,
+          "speaker": "presenter",
+          "text": "A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold."
+        },
+        {
+          "start": 97.4,
+          "end": 105.7,
+          "speaker": "presenter",
+          "text": "The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic."
+        }
+      ]
+    },
+    "chronological_section": {
+      "segment_summaries": [
+        {
+          "start": 2.0,
+          "end": 105.7,
+          "dominant_class": "demo",
+          "event_ids": [
+            "mini_0002",
+            "mini_0015",
+            "mini_0058",
+            "mini_0100"
+          ],
+          "unit_summary": "The evaluator starts the recorded assessment and the presenter begins a Kabaddi Game assignment walkthrough, moving from the title slide to game rules and simulation environment slides.",
+          "transcript_text": "I am an evaluator. I'll be evaluating your presentation based on the project and task requirements. Please begin when you're ready. Note, this session is being recorded. Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game. I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team. There are two modes of playing this game, turn by turn and simultaneous. The game rules are as follows. There is a grid based field divided into left and right halves, and gold treasure in each team half. Players move in four possible directions: up, down, left, and right. A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold. The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic.",
+          "screen_summaries": [
+            "ICAPP presentation interface with left navigation, central title slide for CSE 643 Sec A AI HW2 Kabaddi Game, and a right video/transcript/chat panel.",
+            "The presenter remains on the title slide after the evaluator asks them to begin; upload controls and microphone/share controls are visible.",
+            "The screen navigates to page 3, Game Rules, listing grid field, gold treasure, player movement, capture mechanics, and winning condition.",
+            "The screen moves to page 4, Simulation Environment, explaining Python movement/legal actions, gold pickup and return, capture/removal, and real-time position updates."
+          ],
+          "action_summaries": [
+            "Cursor stays in the main slide area; movement near slide navigation is followed by page changes from title to game rules and simulation environment."
+          ]
+        }
+      ]
+    },
+    "transcript_section": {
+      "prewritten_markdown": "Full transcript:\n\n[00:02.2-00:03.8] evaluator: I am an evaluator.\n[00:04.0-00:09.0] evaluator: I'll be evaluating your presentation based on the project and task requirements.\n[00:09.7-00:11.6] evaluator: Please begin when you're ready.\n[00:11.8-00:14.5] evaluator: Note, this session is being recorded.\n[00:15.5-00:21.3] presenter: Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game.\n[00:23.6-00:38.4] presenter: I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team.\n[00:42.9-00:54.0] presenter: There are two modes of playing this game, turn by turn and simultaneous.\n[00:56.1-00:58.2] presenter: The game rules are as follows.\n[00:58.4-01:06.2] presenter: There is a grid based field divided into left and right halves, and gold treasure in each team half.\n[01:11.6-01:20.0] presenter: Players move in four possible directions: up, down, left, and right.\n[01:24.1-01:35.8] presenter: A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold.\n[01:37.4-01:45.7] presenter: The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic.",
+      "segments": [
+        {
+          "start": 2.2,
+          "end": 3.8,
+          "speaker": "evaluator",
+          "text": "I am an evaluator."
+        },
+        {
+          "start": 4.0,
+          "end": 9.0,
+          "speaker": "evaluator",
+          "text": "I'll be evaluating your presentation based on the project and task requirements."
+        },
+        {
+          "start": 9.7,
+          "end": 11.6,
+          "speaker": "evaluator",
+          "text": "Please begin when you're ready."
+        },
+        {
+          "start": 11.8,
+          "end": 14.5,
+          "speaker": "evaluator",
+          "text": "Note, this session is being recorded."
+        },
+        {
+          "start": 15.5,
+          "end": 21.3,
+          "speaker": "presenter",
+          "text": "Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game."
+        },
+        {
+          "start": 23.6,
+          "end": 38.4,
+          "speaker": "presenter",
+          "text": "I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team."
+        },
+        {
+          "start": 42.9,
+          "end": 54.0,
+          "speaker": "presenter",
+          "text": "There are two modes of playing this game, turn by turn and simultaneous."
+        },
+        {
+          "start": 56.1,
+          "end": 58.2,
+          "speaker": "presenter",
+          "text": "The game rules are as follows."
+        },
+        {
+          "start": 58.4,
+          "end": 66.2,
+          "speaker": "presenter",
+          "text": "There is a grid based field divided into left and right halves, and gold treasure in each team half."
+        },
+        {
+          "start": 71.6,
+          "end": 80.0,
+          "speaker": "presenter",
+          "text": "Players move in four possible directions: up, down, left, and right."
+        },
+        {
+          "start": 84.1,
+          "end": 95.8,
+          "speaker": "presenter",
+          "text": "A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold."
+        },
+        {
+          "start": 97.4,
+          "end": 105.7,
+          "speaker": "presenter",
+          "text": "The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic."
+        }
+      ],
+      "full_text": "[00:02.2-00:03.8] evaluator: I am an evaluator.\n[00:04.0-00:09.0] evaluator: I'll be evaluating your presentation based on the project and task requirements.\n[00:09.7-00:11.6] evaluator: Please begin when you're ready.\n[00:11.8-00:14.5] evaluator: Note, this session is being recorded.\n[00:15.5-00:21.3] presenter: Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game.\n[00:23.6-00:38.4] presenter: I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team.\n[00:42.9-00:54.0] presenter: There are two modes of playing this game, turn by turn and simultaneous.\n[00:56.1-00:58.2] presenter: The game rules are as follows.\n[00:58.4-01:06.2] presenter: There is a grid based field divided into left and right halves, and gold treasure in each team half.\n[01:11.6-01:20.0] presenter: Players move in four possible directions: up, down, left, and right.\n[01:24.1-01:35.8] presenter: A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold.\n[01:37.4-01:45.7] presenter: The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic."
+    }
+  },
+  "llm_output": {
+    "backend": "openrouter",
+    "model": "openai/gpt-oss-120b:free",
+    "report_title": {
+      "summary": "mini-interval-segment-smoke"
+    },
+    "meeting_narrative_section": {
+      "summary": "The meeting opens at **00:02.0** with the ICAPP presentation interface displayed. The left side of the window shows the navigation pane, while the central area presents the title slide for **\u201cCSE\u202f643 Sec\u202fA AI HW2 Kabaddi Game.\u201d** On the right, a panel contains the video feed, transcript, and chat. The cursor is positioned inside the main content area of the slide.\n\nAt **00:15.0** the evaluator speaks: \u201cI am an evaluator. I\u2019ll be evaluating your presentation based on the project and task requirements. Please begin when you\u2019re ready. Note, this session is being recorded.\u201d The presenter remains on the title slide. Visible on the slide are the upload controls and the microphone/share icons, indicating that the presenter can share their screen or audio. The cursor stays within the main content region. Shortly after, a navigation action occurs, moving the presentation forward.\n\nAt **00:58.0** the screen changes to **page\u202f3**, titled **\u201cGame Rules.\u201d** The slide lists several bullet points:\n- Grid field divided into left and right halves  \n- Gold treasure located in each team\u2019s half  \n- Player movement allowed in four directions (up, down, left, right)  \n- Capture mechanics: a player in the opponent\u2019s half can be captured if an opponent occupies the same cell  \n- Winning condition: returning with the opponent\u2019s gold  \n\nThe cursor is seen near the \u201cNext\u201d button in the main content area, indicating the presenter is ready to advance.\n\nAt **01:40.0** the presentation advances to **page\u202f4**, titled **\u201cSimulation Environment.\u201d** This slide explains how the Python implementation handles:\n- Movement and validation of legal actions  \n- Gold pickup and the requirement to return it to the player\u2019s own side  \n- Capture and removal of players from the board  \n- Real\u2011time updates of each player\u2019s position  \n\nThe cursor remains inside the main content region as the presenter prepares to discuss the simulation details.\n\nDuring this period, the presenter speaks after the evaluator\u2019s prompt:  \n\u201cHello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game. I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent\u2019s gold and return safely to its own team. There are two modes of playing this game, turn by turn and simultaneous. The game rules are as follows. There is a grid based field divided into left and right halves, and gold treasure in each team half. Players move in four possible directions: up, down, left, and right. A player in the opponent\u2019s half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent\u2019s gold. The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic.\u201d\n\nThus, from the start of the recording through **01:40.0**, the meeting consists of the evaluator\u2019s opening remarks, the presenter\u2019s introduction of the Kabaddi Game assignment, and a slide\u2011by\u2011slide walkthrough of the game rules followed by the technical description of the Python simulation environment."
+    },
+    "demo_section": {
+      "summary": "The demo begins with the ICAPP web presentation interface (event\u202fmini_0002, 2\u202fs). The layout includes a header, a left sidebar with navigation items (My Application, My Project Tasks, My Course Tasks, Logout), a main content area showing the title slide \u201cCSE\u202f643 Sec\u202fA AI HW2 Kabaddi Game\u201d by Ashima Jain, and a right panel containing webcam video, transcript, and a message input field. The cursor is positioned inside the main content area.\n\nAt 15\u202fs (event\u202fmini_0015) the presenter remains on the title slide after the evaluator\u2019s request to begin. Upload controls and a microphone\u2011active banner appear near the top of the slide, with screen\u2011sharing controls at the bottom. The cursor stays within the slide area as the presenter starts speaking.\n\nThe presenter introduces herself and the assignment (15.5\u201321.3\u202fs) and explains that a simplified Kabaddi game has been implemented in Python, featuring two teams with two players each, whose objective is to capture the opponent\u2019s gold and return it safely. She describes two playing modes\u2014turn\u2011by\u2011turn and simultaneous (42.9\u201354.0\u202fs).\n\nThe demo then navigates to the \u201cGame Rules\u201d slide (event\u202fmini_0058, 58\u202fs). The slide lists the grid\u2011based field divided into left and right halves, the placement of gold treasure in each half, player movement directions (up, down, left, right), capture mechanics (a player in the opponent\u2019s half is captured when sharing a cell with an opponent), and the winning condition (returning with the opponent\u2019s gold). The cursor moves near the \u201cNext\u201d navigation control before the page change.\n\nAt 100\u202fs (event\u202fmini_0100) the presentation moves to the \u201cSimulation Environment\u201d slide. This slide details the Python\u2011based simulation, including generation of legal actions, gold pickup and return logic, capture/removal of players, two modes of play, and step\u2011wise visualization of real\u2011time positions. The cursor remains inside the main slide area after the transition.\n\nThroughout the demo, the right\u2011hand transcript panel records the evaluator\u2019s opening remarks (identifying themselves as the evaluator, stating evaluation criteria, and noting the recording) and the presenter\u2019s explanations of the game implementation, rules, and simulation environment."
+    },
+    "chronological_section": {
+      "summary": "The evaluator introduced themselves, stated they would assess the presentation against the project and task requirements, and noted that the session was being recorded. The presenter, Ashima Jain, began the walkthrough of the Kabaddi Game assignment. Starting from the title slide titled \u201cCSE 643 Sec A AI HW2 Kabaddi Game,\u201d the presenter described the implementation of a simplified Kabaddi game in Python, featuring two teams with two players each, a grid\u2011based field divided into left and right halves, gold treasures in each half, and movement in four directions. The presenter then moved to the \u201cGame Rules\u201d slide, outlining the grid layout, gold treasure locations, player movement, capture mechanics, and the winning condition of returning with the opponent\u2019s gold. Subsequently, the presentation advanced to the \u201cSimulation Environment\u201d slide, explaining how the Python environment manages player movements, legal actions, gold pickup and return, capture/removal, and real-time position updates. Throughout this segment, the cursor remained within the main slide area while navigation controls were used to transition between slides."
+    },
+    "transcript_section": {
+      "summary": "Full transcript:\n\n[00:02.2-00:03.8] evaluator: I am an evaluator.\n[00:04.0-00:09.0] evaluator: I'll be evaluating your presentation based on the project and task requirements.\n[00:09.7-00:11.6] evaluator: Please begin when you're ready.\n[00:11.8-00:14.5] evaluator: Note, this session is being recorded.\n[00:15.5-00:21.3] presenter: Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game.\n[00:23.6-00:38.4] presenter: I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team.\n[00:42.9-00:54.0] presenter: There are two modes of playing this game, turn by turn and simultaneous.\n[00:56.1-00:58.2] presenter: The game rules are as follows.\n[00:58.4-01:06.2] presenter: There is a grid based field divided into left and right halves, and gold treasure in each team half.\n[01:11.6-01:20.0] presenter: Players move in four possible directions: up, down, left, and right.\n[01:24.1-01:35.8] presenter: A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold.\n[01:37.4-01:45.7] presenter: The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic."
+    },
+    "final_markdown": "# mini-interval-segment-smoke\n\n## Meeting Narrative Section\nThe meeting opens at **00:02.0** with the ICAPP presentation interface displayed. The left side of the window shows the navigation pane, while the central area presents the title slide for **\u201cCSE\u202f643 Sec\u202fA AI HW2 Kabaddi Game.\u201d** On the right, a panel contains the video feed, transcript, and chat. The cursor is positioned inside the main content area of the slide.\n\nAt **00:15.0** the evaluator speaks: \u201cI am an evaluator. I\u2019ll be evaluating your presentation based on the project and task requirements. Please begin when you\u2019re ready. Note, this session is being recorded.\u201d The presenter remains on the title slide. Visible on the slide are the upload controls and the microphone/share icons, indicating that the presenter can share their screen or audio. The cursor stays within the main content region. Shortly after, a navigation action occurs, moving the presentation forward.\n\nAt **00:58.0** the screen changes to **page\u202f3**, titled **\u201cGame Rules.\u201d** The slide lists several bullet points:\n- Grid field divided into left and right halves  \n- Gold treasure located in each team\u2019s half  \n- Player movement allowed in four directions (up, down, left, right)  \n- Capture mechanics: a player in the opponent\u2019s half can be captured if an opponent occupies the same cell  \n- Winning condition: returning with the opponent\u2019s gold  \n\nThe cursor is seen near the \u201cNext\u201d button in the main content area, indicating the presenter is ready to advance.\n\nAt **01:40.0** the presentation advances to **page\u202f4**, titled **\u201cSimulation Environment.\u201d** This slide explains how the Python implementation handles:\n- Movement and validation of legal actions  \n- Gold pickup and the requirement to return it to the player\u2019s own side  \n- Capture and removal of players from the board  \n- Real\u2011time updates of each player\u2019s position  \n\nThe cursor remains inside the main content region as the presenter prepares to discuss the simulation details.\n\nDuring this period, the presenter speaks after the evaluator\u2019s prompt:  \n\u201cHello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game. I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent\u2019s gold and return safely to its own team. There are two modes of playing this game, turn by turn and simultaneous. The game rules are as follows. There is a grid based field divided into left and right halves, and gold treasure in each team half. Players move in four possible directions: up, down, left, and right. A player in the opponent\u2019s half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent\u2019s gold. The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic.\u201d\n\nThus, from the start of the recording through **01:40.0**, the meeting consists of the evaluator\u2019s opening remarks, the presenter\u2019s introduction of the Kabaddi Game assignment, and a slide\u2011by\u2011slide walkthrough of the game rules followed by the technical description of the Python simulation environment.\n\n## Demo Section\nThe demo begins with the ICAPP web presentation interface (event\u202fmini_0002, 2\u202fs). The layout includes a header, a left sidebar with navigation items (My Application, My Project Tasks, My Course Tasks, Logout), a main content area showing the title slide \u201cCSE\u202f643 Sec\u202fA AI HW2 Kabaddi Game\u201d by Ashima Jain, and a right panel containing webcam video, transcript, and a message input field. The cursor is positioned inside the main content area.\n\nAt 15\u202fs (event\u202fmini_0015) the presenter remains on the title slide after the evaluator\u2019s request to begin. Upload controls and a microphone\u2011active banner appear near the top of the slide, with screen\u2011sharing controls at the bottom. The cursor stays within the slide area as the presenter starts speaking.\n\nThe presenter introduces herself and the assignment (15.5\u201321.3\u202fs) and explains that a simplified Kabaddi game has been implemented in Python, featuring two teams with two players each, whose objective is to capture the opponent\u2019s gold and return it safely. She describes two playing modes\u2014turn\u2011by\u2011turn and simultaneous (42.9\u201354.0\u202fs).\n\nThe demo then navigates to the \u201cGame Rules\u201d slide (event\u202fmini_0058, 58\u202fs). The slide lists the grid\u2011based field divided into left and right halves, the placement of gold treasure in each half, player movement directions (up, down, left, right), capture mechanics (a player in the opponent\u2019s half is captured when sharing a cell with an opponent), and the winning condition (returning with the opponent\u2019s gold). The cursor moves near the \u201cNext\u201d navigation control before the page change.\n\nAt 100\u202fs (event\u202fmini_0100) the presentation moves to the \u201cSimulation Environment\u201d slide. This slide details the Python\u2011based simulation, including generation of legal actions, gold pickup and return logic, capture/removal of players, two modes of play, and step\u2011wise visualization of real\u2011time positions. The cursor remains inside the main slide area after the transition.\n\nThroughout the demo, the right\u2011hand transcript panel records the evaluator\u2019s opening remarks (identifying themselves as the evaluator, stating evaluation criteria, and noting the recording) and the presenter\u2019s explanations of the game implementation, rules, and simulation environment.\n\n## Chronological Section\nThe evaluator introduced themselves, stated they would assess the presentation against the project and task requirements, and noted that the session was being recorded. The presenter, Ashima Jain, began the walkthrough of the Kabaddi Game assignment. Starting from the title slide titled \u201cCSE 643 Sec A AI HW2 Kabaddi Game,\u201d the presenter described the implementation of a simplified Kabaddi game in Python, featuring two teams with two players each, a grid\u2011based field divided into left and right halves, gold treasures in each half, and movement in four directions. The presenter then moved to the \u201cGame Rules\u201d slide, outlining the grid layout, gold treasure locations, player movement, capture mechanics, and the winning condition of returning with the opponent\u2019s gold. Subsequently, the presentation advanced to the \u201cSimulation Environment\u201d slide, explaining how the Python environment manages player movements, legal actions, gold pickup and return, capture/removal, and real-time position updates. Throughout this segment, the cursor remained within the main slide area while navigation controls were used to transition between slides.\n\n## Transcript Section\nFull transcript:\n\n[00:02.2-00:03.8] evaluator: I am an evaluator.\n[00:04.0-00:09.0] evaluator: I'll be evaluating your presentation based on the project and task requirements.\n[00:09.7-00:11.6] evaluator: Please begin when you're ready.\n[00:11.8-00:14.5] evaluator: Note, this session is being recorded.\n[00:15.5-00:21.3] presenter: Hello. My name is Ashima Jain, and the assignment given to us is the simulation of the kabaddi game.\n[00:23.6-00:38.4] presenter: I implemented a simplified variant of kabaddi game using Python. There are two teams with two players, and the goal is to capture the opponent's gold and return safely to its own team.\n[00:42.9-00:54.0] presenter: There are two modes of playing this game, turn by turn and simultaneous.\n[00:56.1-00:58.2] presenter: The game rules are as follows.\n[00:58.4-01:06.2] presenter: There is a grid based field divided into left and right halves, and gold treasure in each team half.\n[01:11.6-01:20.0] presenter: Players move in four possible directions: up, down, left, and right.\n[01:24.1-01:35.8] presenter: A player in the opponent's half can be captured if an opponent is in the same cell, and the winning condition is returning with the opponent's gold.\n[01:37.4-01:45.7] presenter: The simulation is done using Python, and the environment handles player movements, legal actions, goal pickup and return logic."
+  }
+}
