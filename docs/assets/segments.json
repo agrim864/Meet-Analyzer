@@ -12,7 +12,7 @@
           854,
           133
         ],
-        "score": 0.8822900366783142,
+        "score": 0.8049035382270813,
         "source": "uitag-yolo"
       },
       {
@@ -23,7 +23,7 @@
           122,
           534
         ],
-        "score": 0.8041663019040997,
+        "score": 0.7754922233538681,
         "source": "uitag-yolo"
       },
       {
@@ -34,47 +34,7 @@
           854,
           534
         ],
-        "score": 0.8822900366783142,
-        "source": "uitag-yolo-coverage"
-      }
-    ]
-  },
-  {
-    "time_sec": 15.0,
-    "raw": "docs\\assets\\frame_0015_raw.jpg",
-    "overlay": "docs\\assets\\frame_0015_segments.jpg",
-    "groups": [
-      {
-        "label": "header",
-        "bbox": [
-          0,
-          0,
-          854,
-          133
-        ],
-        "score": 0.8588123631477356,
-        "source": "uitag-yolo"
-      },
-      {
-        "label": "left_sidebar",
-        "bbox": [
-          0,
-          133,
-          121,
-          534
-        ],
-        "score": 0.8761920249060299,
-        "source": "uitag-yolo"
-      },
-      {
-        "label": "main_content",
-        "bbox": [
-          121,
-          133,
-          854,
-          534
-        ],
-        "score": 0.8761920249060299,
+        "score": 0.8049035382270813,
         "source": "uitag-yolo-coverage"
       }
     ]
@@ -92,18 +52,29 @@
           854,
           133
         ],
-        "score": 0.7448939990997314,
+        "score": 0.7449897837638855,
+        "source": "uitag-yolo-lowconf"
+      },
+      {
+        "label": "left_sidebar",
+        "bbox": [
+          0,
+          133,
+          120,
+          534
+        ],
+        "score": 0.538732549367326,
         "source": "uitag-yolo-lowconf"
       },
       {
         "label": "main_content",
         "bbox": [
-          0,
+          120,
           133,
           854,
           534
         ],
-        "score": 0.7448939990997314,
+        "score": 0.7449897837638855,
         "source": "uitag-yolo-coverage"
       }
     ]
@@ -121,7 +92,7 @@
           854,
           133
         ],
-        "score": 0.9061578822135925,
+        "score": 0.9009806823730468,
         "source": "uitag-yolo"
       },
       {
@@ -132,7 +103,7 @@
           120,
           534
         ],
-        "score": 0.9020498024479726,
+        "score": 0.9040683924214223,
         "source": "uitag-yolo"
       },
       {
@@ -143,7 +114,7 @@
           854,
           534
         ],
-        "score": 0.9061578822135925,
+        "score": 0.9040683924214223,
         "source": "uitag-yolo-coverage"
       }
     ]
@@ -161,7 +132,7 @@
           854,
           133
         ],
-        "score": 0.8283653569221496,
+        "score": 0.8098556113243103,
         "source": "uitag-yolo"
       },
       {
@@ -172,7 +143,7 @@
           120,
           534
         ],
-        "score": 0.707130435397116,
+        "score": 0.697409225447794,
         "source": "uitag-yolo-lowconf"
       },
       {
@@ -183,7 +154,7 @@
           854,
           534
         ],
-        "score": 0.8283653569221496,
+        "score": 0.8098556113243103,
         "source": "uitag-yolo-coverage"
       }
     ]
@@ -201,7 +172,7 @@
           854,
           133
         ],
-        "score": 0.7965384435653686,
+        "score": 0.7668130111694336,
         "source": "uitag-yolo"
       },
       {
@@ -209,21 +180,21 @@
         "bbox": [
           0,
           133,
-          120,
+          121,
           534
         ],
-        "score": 0.6777170429069005,
-        "source": "uitag-yolo-lowconf"
+        "score": 0.886001976581102,
+        "source": "uitag-yolo"
       },
       {
         "label": "main_content",
         "bbox": [
-          120,
+          121,
           133,
           854,
           534
         ],
-        "score": 0.7965384435653686,
+        "score": 0.886001976581102,
         "source": "uitag-yolo-coverage"
       }
     ]

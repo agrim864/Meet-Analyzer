@@ -1,8 +1,7 @@
 {
-  "frames_sampled": 6,
+  "frames_sampled": 5,
   "sample_times_sec": [
     2.0,
-    15.0,
     58.0,
     100.0,
     145.0,
@@ -11,7 +10,7 @@
   "classes": {
     "header": {
       "example_time_sec": 2.0,
-      "score": 0.8823,
+      "score": 0.8049,
       "source": "uitag-yolo",
       "bbox": [
         0,
@@ -20,11 +19,11 @@
         133
       ],
       "proof_image": "docs/assets/proof_header.jpg",
-      "detected_in_frames": 6
+      "detected_in_frames": 5
     },
     "left_sidebar": {
       "example_time_sec": 2.0,
-      "score": 0.8042,
+      "score": 0.7755,
       "source": "uitag-yolo",
       "bbox": [
         0,
@@ -37,7 +36,7 @@
     },
     "main_content": {
       "example_time_sec": 2.0,
-      "score": 0.8823,
+      "score": 0.8049,
       "source": "uitag-yolo-coverage",
       "bbox": [
         122,
@@ -46,7 +45,7 @@
         534
       ],
       "proof_image": "docs/assets/proof_main_content.jpg",
-      "detected_in_frames": 6
+      "detected_in_frames": 5
     }
   },
   "frame_metrics": [
@@ -62,25 +61,15 @@
       "low_conf_regions": 0
     },
     {
-      "time_sec": 15.0,
+      "time_sec": 58.0,
       "labels": [
         "header",
         "left_sidebar",
         "main_content"
       ],
       "coverage_grid_pct": 100.0,
-      "high_conf_regions": 3,
-      "low_conf_regions": 0
-    },
-    {
-      "time_sec": 58.0,
-      "labels": [
-        "header",
-        "main_content"
-      ],
-      "coverage_grid_pct": 100.0,
       "high_conf_regions": 0,
-      "low_conf_regions": 2
+      "low_conf_regions": 3
     },
     {
       "time_sec": 100.0,
@@ -112,11 +101,11 @@
         "main_content"
       ],
       "coverage_grid_pct": 100.0,
-      "high_conf_regions": 2,
-      "low_conf_regions": 1
+      "high_conf_regions": 3,
+      "low_conf_regions": 0
     }
   ],
   "mean_grid_coverage_pct": 100.0,
-  "high_conf_region_count": 13,
+  "high_conf_region_count": 11,
   "low_conf_region_count": 4
 }

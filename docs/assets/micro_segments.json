@@ -1,0 +1,4196 @@
+[
+  {
+    "time_sec": 2.0,
+    "raw": "docs\\assets\\frame_0002_raw.jpg",
+    "overlay": "docs\\assets\\frame_0002_micro.jpg",
+    "provider": "omniparser_repo_v2",
+    "confidence": 1.0,
+    "elements": [
+      {
+        "type": "icon",
+        "bbox": [
+          162,
+          0,
+          184,
+          25
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          185,
+          0,
+          257,
+          25
+        ],
+        "text": "About CBS",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          327,
+          0,
+          416,
+          25
+        ],
+        "text": "CUP VIEW HONDS",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          833,
+          0,
+          854,
+          23
+        ],
+        "text": "Play button",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          589,
+          1,
+          607,
+          23
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "tab",
+        "bbox": [
+          609,
+          1,
+          628,
+          21
+        ],
+        "text": "Add New tab",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          4,
+          4,
+          24,
+          19
+        ],
+        "text": "Pink",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          26,
+          4,
+          43,
+          19
+        ],
+        "text": "Green",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          305,
+          4,
+          324,
+          21
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          47,
+          5,
+          63,
+          20
+        ],
+        "text": "Tissues",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          435,
+          5,
+          449,
+          21
+        ],
+        "text": "Target",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          471,
+          5,
+          487,
+          20
+        ],
+        "text": "Yellow",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          452,
+          6,
+          464,
+          20
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          70,
+          25,
+          180,
+          50
+        ],
+        "text": "Projectsocks.com",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          788,
+          25,
+          809,
+          50
+        ],
+        "text": "Download",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          810,
+          25,
+          833,
+          50
+        ],
+        "text": "Advanced",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          3,
+          26,
+          23,
+          49
+        ],
+        "text": "Back",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          24,
+          26,
+          45,
+          50
+        ],
+        "text": "Back",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          46,
+          26,
+          66,
+          50
+        ],
+        "text": "Keep studying",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          755,
+          26,
+          778,
+          50
+        ],
+        "text": "Directly as Dummies",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          850,
+          26,
+          854,
+          51
+        ],
+        "text": "View as lower as lower level (\u2318N)",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          709,
+          27,
+          727,
+          48
+        ],
+        "text": "Recycle Bin",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          689,
+          28,
+          705,
+          47
+        ],
+        "text": "Replay",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          728,
+          28,
+          749,
+          48
+        ],
+        "text": "Four-point star",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          1,
+          51,
+          33,
+          86
+        ],
+        "text": "All Sheets",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          34,
+          51,
+          86,
+          86
+        ],
+        "text": "ICAPP",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          740,
+          60,
+          845,
+          77
+        ],
+        "text": "ashimaj@iiitd ac.in",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          85,
+          111,
+          107
+        ],
+        "text": "Endcap",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          358,
+          97,
+          578,
+          134
+        ],
+        "text": "Microphong sDea* inieract",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          153,
+          103,
+          214,
+          125
+        ],
+        "text": "Choose",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          7,
+          109,
+          45,
+          123
+        ],
+        "text": "Home",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          225,
+          109,
+          269,
+          121
+        ],
+        "text": "HWZ pdl",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          130,
+          111,
+          162
+        ],
+        "text": "Application",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          151,
+          131,
+          549,
+          254
+        ],
+        "text": "CSE 643 Sec AAI HW2",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          162,
+          157,
+          194
+        ],
+        "text": "Project Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          193,
+          133,
+          225
+        ],
+        "text": "Course Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          224,
+          132,
+          257
+        ],
+        "text": "Logout",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          300,
+          250,
+          440,
+          274
+        ],
+        "text": "Kabbadi Game",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          316,
+          301,
+          430,
+          376
+        ],
+        "text": "Ashima Jain PhD CSE PhD25004",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          702,
+          374,
+          724,
+          382
+        ],
+        "text": "Niote",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          661,
+          387,
+          731,
+          401
+        ],
+        "text": "being recorded",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          494,
+          431,
+          514,
+          450
+        ],
+        "text": "Birds",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          514,
+          431,
+          531,
+          450
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          349,
+          449,
+          406,
+          473
+        ],
+        "text": "Page 1 of 11",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          770,
+          449,
+          817,
+          478
+        ],
+        "text": "Send",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          298,
+          450,
+          351,
+          473
+        ],
+        "text": "Previous",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          406,
+          450,
+          442,
+          473
+        ],
+        "text": "Next",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          599,
+          450,
+          770,
+          477
+        ],
+        "text": "Performative",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          686,
+          493,
+          700,
+          507
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          530,
+          501,
+          557,
+          529
+        ],
+        "text": "Hide",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          462,
+          502,
+          531,
+          528
+        ],
+        "text": "Stop sharing.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          386,
+          512,
+          430,
+          520
+        ],
+        "text": "naring Yul",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      }
+    ],
+    "overlays": []
+  },
+  {
+    "time_sec": 58.0,
+    "raw": "docs\\assets\\frame_0058_raw.jpg",
+    "overlay": "docs\\assets\\frame_0058_micro.jpg",
+    "provider": "omniparser_repo_v2",
+    "confidence": 1.0,
+    "elements": [
+      {
+        "type": "icon",
+        "bbox": [
+          166,
+          1,
+          184,
+          23
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          304,
+          1,
+          327,
+          24
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          327,
+          1,
+          415,
+          24
+        ],
+        "text": "C:\\Users\\\\\\Desktop\\\\Hands\\\\",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          433,
+          2,
+          449,
+          22
+        ],
+        "text": "RecordRecord",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          833,
+          2,
+          852,
+          23
+        ],
+        "text": "Expand to lower level",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          24,
+          3,
+          42,
+          19
+        ],
+        "text": "Green",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          452,
+          3,
+          465,
+          23
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          3,
+          4,
+          18,
+          19
+        ],
+        "text": "Pink",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          469,
+          4,
+          487,
+          20
+        ],
+        "text": "Yellow",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          47,
+          5,
+          63,
+          19
+        ],
+        "text": "Blurry",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          188,
+          5,
+          252,
+          19
+        ],
+        "text": "About Us",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          611,
+          5,
+          626,
+          19
+        ],
+        "text": "Add New Project Project Project",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          591,
+          6,
+          605,
+          19
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          24,
+          25,
+          44,
+          51
+        ],
+        "text": "Forward",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          69,
+          25,
+          179,
+          51
+        ],
+        "text": "Properties - Virgin Mobile",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          4,
+          26,
+          24,
+          50
+        ],
+        "text": "Back",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          46,
+          26,
+          67,
+          51
+        ],
+        "text": "Refresh",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          810,
+          27,
+          831,
+          48
+        ],
+        "text": "Automatic ACROSS",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          708,
+          28,
+          727,
+          46
+        ],
+        "text": "Recycle Bin",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          728,
+          28,
+          750,
+          47
+        ],
+        "text": "Four-point star",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "tab",
+        "bbox": [
+          756,
+          28,
+          777,
+          47
+        ],
+        "text": "Hide this tab",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          789,
+          28,
+          808,
+          48
+        ],
+        "text": "Download",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          833,
+          29,
+          849,
+          48
+        ],
+        "text": "More options",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          850,
+          29,
+          854,
+          49
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          3,
+          51,
+          91,
+          86
+        ],
+        "text": "ICAPP",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          731,
+          51,
+          851,
+          86
+        ],
+        "text": "ashimaj@iiitd.ac.in",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          363,
+          87,
+          399,
+          120
+        ],
+        "text": "Say hello",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          153,
+          92,
+          214,
+          112
+        ],
+        "text": "choose file.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          287,
+          95,
+          357,
+          105
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          225,
+          97,
+          269,
+          109
+        ],
+        "text": "HWZ pdl",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          100,
+          124,
+          131
+        ],
+        "text": "Home",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          409,
+          101,
+          568,
+          114
+        ],
+        "text": "Microphone active spea? Interact",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          818,
+          126,
+          837,
+          148
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          130,
+          122,
+          163
+        ],
+        "text": "Application",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          574,
+          149,
+          587,
+          164
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          162,
+          116,
+          194
+        ],
+        "text": "Project Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          574,
+          166,
+          587,
+          178
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          327,
+          185,
+          415,
+          203
+        ],
+        "text": "Game Rules",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          193,
+          118,
+          225
+        ],
+        "text": "Course Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          173,
+          216,
+          186,
+          230
+        ],
+        "text": "Polishes",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          224,
+          119,
+          257
+        ],
+        "text": "Logout",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          610,
+          270,
+          650,
+          278
+        ],
+        "text": "Trnschipt",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          192,
+          296,
+          208,
+          312
+        ],
+        "text": "More options",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          188,
+          320,
+          268,
+          338
+        ],
+        "text": "WhatsApp",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          618,
+          320,
+          662,
+          328
+        ],
+        "text": "cvaluauno",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          421,
+          328,
+          456,
+          360
+        ],
+        "text": "Bird",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          151,
+          336,
+          164,
+          352
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          191,
+          338,
+          208,
+          358
+        ],
+        "text": "Add date",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          661,
+          375,
+          731,
+          389
+        ],
+        "text": "belng recorded",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          296,
+          437,
+          351,
+          461
+        ],
+        "text": "Previous",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          405,
+          437,
+          445,
+          462
+        ],
+        "text": "Next",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          599,
+          438,
+          773,
+          465
+        ],
+        "text": "www.DesktopBackground.org",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          781,
+          447,
+          807,
+          459
+        ],
+        "text": "Send",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          799,
+          464,
+          818,
+          476
+        ],
+        "text": "A blank space for text or image.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          466,
+          484,
+          498,
+          508
+        ],
+        "text": "Apple iPhone",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          437,
+          485,
+          463,
+          512
+        ],
+        "text": "Camera",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          502,
+          485,
+          529,
+          508
+        ],
+        "text": "Album Cover",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          403,
+          487,
+          431,
+          510
+        ],
+        "text": "Android",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          528,
+          505,
+          558,
+          524
+        ],
+        "text": "Hide",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          388,
+          512,
+          456,
+          520
+        ],
+        "text": "Tnaring #clr _hiten",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      }
+    ],
+    "overlays": []
+  },
+  {
+    "time_sec": 100.0,
+    "raw": "docs\\assets\\frame_0100_raw.jpg",
+    "overlay": "docs\\assets\\frame_0100_micro.jpg",
+    "provider": "omniparser_repo_v2",
+    "confidence": 1.0,
+    "elements": [
+      {
+        "type": "icon",
+        "bbox": [
+          303,
+          1,
+          327,
+          25
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          327,
+          2,
+          414,
+          23
+        ],
+        "text": "C:\\Users\\\\\\Desktop\\\\",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          834,
+          2,
+          853,
+          22
+        ],
+        "text": "Expand to lower level",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          434,
+          3,
+          449,
+          21
+        ],
+        "text": "RecordRecord",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          451,
+          3,
+          465,
+          22
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          3,
+          4,
+          24,
+          18
+        ],
+        "text": "Live",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          47,
+          4,
+          62,
+          19
+        ],
+        "text": "Coaches",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          167,
+          4,
+          182,
+          20
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          28,
+          5,
+          43,
+          18
+        ],
+        "text": "Green",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          188,
+          5,
+          254,
+          19
+        ],
+        "text": "About Capt Capt Captacles",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          591,
+          5,
+          606,
+          19
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          609,
+          5,
+          625,
+          18
+        ],
+        "text": "Add",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          473,
+          6,
+          569,
+          18
+        ],
+        "text": "Gocaln Slldos",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          3,
+          25,
+          24,
+          50
+        ],
+        "text": "Back",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          24,
+          25,
+          44,
+          50
+        ],
+        "text": "Forward",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          69,
+          25,
+          179,
+          51
+        ],
+        "text": "Projector - Geometry - Tools & Design",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          46,
+          26,
+          66,
+          50
+        ],
+        "text": "Reload",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          708,
+          28,
+          727,
+          46
+        ],
+        "text": "Recycle Bin",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          728,
+          28,
+          749,
+          47
+        ],
+        "text": "Four-point star",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "tab",
+        "bbox": [
+          756,
+          29,
+          776,
+          46
+        ],
+        "text": "Hide this tab",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          789,
+          29,
+          808,
+          47
+        ],
+        "text": "Download",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          811,
+          29,
+          831,
+          48
+        ],
+        "text": "Automatic",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          850,
+          29,
+          854,
+          48
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          834,
+          30,
+          850,
+          48
+        ],
+        "text": "More options",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          3,
+          52,
+          91,
+          86
+        ],
+        "text": "ICAPP",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          740,
+          59,
+          846,
+          77
+        ],
+        "text": "ashimaj@iiitd.ac in",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          1,
+          85,
+          124,
+          104
+        ],
+        "text": "Endcap",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          364,
+          87,
+          399,
+          119
+        ],
+        "text": "Save",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          153,
+          92,
+          215,
+          112
+        ],
+        "text": "Choose File.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          581,
+          95,
+          590,
+          108
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          225,
+          97,
+          269,
+          109
+        ],
+        "text": "HWZ pdl",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          409,
+          101,
+          568,
+          114
+        ],
+        "text": "Microphone active spear interact",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          7,
+          109,
+          45,
+          123
+        ],
+        "text": "Home",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          597,
+          120,
+          824,
+          258
+        ],
+        "text": "a person with short hair.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          131,
+          144,
+          162
+        ],
+        "text": "Application",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          149,
+          134,
+          162,
+          149
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          161,
+          129,
+          194
+        ],
+        "text": "Project Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          287,
+          184,
+          454,
+          203
+        ],
+        "text": "Simulation Environment",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          193,
+          127,
+          225
+        ],
+        "text": "Course Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          172,
+          215,
+          186,
+          230
+        ],
+        "text": "Polishes",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          186,
+          219,
+          467,
+          297
+        ],
+        "text": "Conference",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          224,
+          126,
+          257
+        ],
+        "text": "Logout",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          599,
+          260,
+          820,
+          291
+        ],
+        "text": "Tmnscfipt",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          600,
+          288,
+          821,
+          437
+        ],
+        "text": "belng recordad:",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          192,
+          297,
+          208,
+          311
+        ],
+        "text": "Mold",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          461,
+          310,
+          482,
+          330
+        ],
+        "text": "Airplane",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          392,
+          332,
+          430,
+          340
+        ],
+        "text": "Rchy Deld",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          432,
+          342,
+          444,
+          355
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          192,
+          345,
+          206,
+          359
+        ],
+        "text": "Perform",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          170,
+          361,
+          186,
+          377
+        ],
+        "text": "Polishes",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          296,
+          437,
+          351,
+          460
+        ],
+        "text": "Proviou\"",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          405,
+          437,
+          444,
+          462
+        ],
+        "text": "Next",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          597,
+          437,
+          770,
+          466
+        ],
+        "text": "Create new document (\u2318N)",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          770,
+          438,
+          816,
+          465
+        ],
+        "text": "Send",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          805,
+          476,
+          820,
+          495
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          503,
+          486,
+          529,
+          509
+        ],
+        "text": "Sanitize",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          403,
+          488,
+          429,
+          508
+        ],
+        "text": "Network",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          436,
+          488,
+          461,
+          510
+        ],
+        "text": "Image",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          533,
+          488,
+          563,
+          529
+        ],
+        "text": "Hide",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          565,
+          488,
+          580,
+          507
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          388,
+          512,
+          430,
+          520
+        ],
+        "text": "Taring Yolt",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          490,
+          512,
+          520,
+          520
+        ],
+        "text": "shoring",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      }
+    ],
+    "overlays": []
+  },
+  {
+    "time_sec": 145.0,
+    "raw": "docs\\assets\\frame_0145_raw.jpg",
+    "overlay": "docs\\assets\\frame_0145_micro.jpg",
+    "provider": "omniparser_repo_v2",
+    "confidence": 1.0,
+    "elements": [
+      {
+        "type": "icon",
+        "bbox": [
+          307,
+          1,
+          325,
+          23
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          327,
+          2,
+          414,
+          23
+        ],
+        "text": "CUP Manager",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          434,
+          3,
+          449,
+          21
+        ],
+        "text": "RecordRecord",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          452,
+          3,
+          465,
+          22
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          833,
+          3,
+          852,
+          22
+        ],
+        "text": "Expand to lower level",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          4,
+          4,
+          24,
+          19
+        ],
+        "text": "Live",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          28,
+          4,
+          43,
+          18
+        ],
+        "text": "Green",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          47,
+          4,
+          63,
+          19
+        ],
+        "text": "Coaches",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          167,
+          4,
+          182,
+          20
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          187,
+          4,
+          252,
+          19
+        ],
+        "text": "Next",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          471,
+          5,
+          487,
+          20
+        ],
+        "text": "Yellow",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          591,
+          6,
+          607,
+          18
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          609,
+          6,
+          625,
+          18
+        ],
+        "text": "Add",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          520,
+          8,
+          568,
+          16
+        ],
+        "text": "Gocald Slldos",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          181,
+          25,
+          221,
+          48
+        ],
+        "text": "a pause button.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          4,
+          26,
+          25,
+          49
+        ],
+        "text": "Back",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          24,
+          26,
+          44,
+          50
+        ],
+        "text": "Next",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          70,
+          26,
+          176,
+          50
+        ],
+        "text": "Projects.org.uk",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          46,
+          27,
+          66,
+          50
+        ],
+        "text": "Reload",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          708,
+          28,
+          727,
+          47
+        ],
+        "text": "Recycle Bin",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          728,
+          28,
+          749,
+          47
+        ],
+        "text": "Four-point star",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          755,
+          28,
+          778,
+          49
+        ],
+        "text": "Add tag",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          789,
+          29,
+          808,
+          48
+        ],
+        "text": "Download",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          811,
+          29,
+          830,
+          48
+        ],
+        "text": "Automatic",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          833,
+          30,
+          849,
+          48
+        ],
+        "text": "Interior",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          850,
+          30,
+          854,
+          48
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          33,
+          51,
+          87,
+          86
+        ],
+        "text": "ICAPP",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          3,
+          52,
+          33,
+          85
+        ],
+        "text": "All Sheets",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          740,
+          59,
+          846,
+          77
+        ],
+        "text": "ashimaj@iiitd.ac in",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          270,
+          86,
+          358,
+          116
+        ],
+        "text": "A blank space for text or image.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          360,
+          87,
+          579,
+          124
+        ],
+        "text": "Microphone active spea: interct",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          154,
+          91,
+          215,
+          113
+        ],
+        "text": "Choose File",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          225,
+          97,
+          269,
+          109
+        ],
+        "text": "HWZ pdl",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          99,
+          150,
+          131
+        ],
+        "text": "Home",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          150,
+          134,
+          163,
+          150
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          27,
+          139,
+          91,
+          155
+        ],
+        "text": "Application",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          162,
+          146,
+          194
+        ],
+        "text": "Project Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          327,
+          173,
+          415,
+          193
+        ],
+        "text": "Agent Types",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          422,
+          190,
+          433,
+          202
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          193,
+          125,
+          225
+        ],
+        "text": "Course Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          223,
+          218,
+          319,
+          231
+        ],
+        "text": "planing D lerent types",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          224,
+          123,
+          257
+        ],
+        "text": "Logout",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          439,
+          241,
+          585,
+          263
+        ],
+        "text": "Albumbumper",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          299,
+          262,
+          441,
+          293
+        ],
+        "text": "aclont",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          439,
+          262,
+          585,
+          294
+        ],
+        "text": "stralea unorc Dob 0",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          800,
+          270,
+          814,
+          286
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          600,
+          284,
+          817,
+          438
+        ],
+        "text": "being recordad",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          298,
+          291,
+          440,
+          323
+        ],
+        "text": "gold Khile",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          438,
+          291,
+          584,
+          323
+        ],
+        "text": "caplured",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          299,
+          322,
+          441,
+          354
+        ],
+        "text": "seuict",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "input",
+        "bbox": [
+          439,
+          322,
+          584,
+          354
+        ],
+        "text": "A text box for entering and exiting a document.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          298,
+          353,
+          439,
+          396
+        ],
+        "text": "Informational and informational settings for your computer system.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          439,
+          353,
+          584,
+          397
+        ],
+        "text": "Newarker",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          295,
+          437,
+          352,
+          461
+        ],
+        "text": "Ptcvious",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          405,
+          437,
+          444,
+          462
+        ],
+        "text": "Next",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          770,
+          437,
+          817,
+          466
+        ],
+        "text": "Send",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          596,
+          438,
+          769,
+          466
+        ],
+        "text": "A website or address.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          502,
+          485,
+          530,
+          510
+        ],
+        "text": "Sanitizer",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          404,
+          486,
+          429,
+          514
+        ],
+        "text": "Nokia instant phone",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          531,
+          486,
+          562,
+          532
+        ],
+        "text": "Hide",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          386,
+          512,
+          430,
+          518
+        ],
+        "text": "HlanunoNLt",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      }
+    ],
+    "overlays": []
+  },
+  {
+    "time_sec": 205.0,
+    "raw": "docs\\assets\\frame_0205_raw.jpg",
+    "overlay": "docs\\assets\\frame_0205_micro.jpg",
+    "provider": "omniparser_repo_v2",
+    "confidence": 1.0,
+    "elements": [
+      {
+        "type": "icon",
+        "bbox": [
+          185,
+          0,
+          256,
+          24
+        ],
+        "text": "About Caps",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          304,
+          0,
+          327,
+          25
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          166,
+          1,
+          183,
+          22
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          327,
+          1,
+          416,
+          23
+        ],
+        "text": "CUP VIEWERS",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          433,
+          2,
+          449,
+          23
+        ],
+        "text": "RecordRecord",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          590,
+          2,
+          606,
+          21
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          833,
+          2,
+          853,
+          22
+        ],
+        "text": "Expand to lower level",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          452,
+          3,
+          465,
+          24
+        ],
+        "text": "Close",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          608,
+          3,
+          625,
+          20
+        ],
+        "text": "Add",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          47,
+          4,
+          63,
+          19
+        ],
+        "text": "Coaches",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          3,
+          5,
+          18,
+          18
+        ],
+        "text": "Red",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          470,
+          5,
+          487,
+          20
+        ],
+        "text": "Yellow",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          18,
+          6,
+          30,
+          18
+        ],
+        "text": "A button for controlling the flow of a second button.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          520,
+          8,
+          568,
+          16
+        ],
+        "text": "Gocalo Slldcs",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          24,
+          25,
+          44,
+          50
+        ],
+        "text": "Forward",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          69,
+          25,
+          179,
+          51
+        ],
+        "text": "Properties - Virgin Mobile",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          3,
+          26,
+          24,
+          50
+        ],
+        "text": "Back",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          46,
+          26,
+          66,
+          51
+        ],
+        "text": "Reload",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          708,
+          27,
+          727,
+          47
+        ],
+        "text": "Share",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          728,
+          28,
+          750,
+          48
+        ],
+        "text": "Four-point star",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          755,
+          28,
+          777,
+          47
+        ],
+        "text": "Add tag",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          789,
+          29,
+          808,
+          48
+        ],
+        "text": "Download",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          811,
+          29,
+          830,
+          48
+        ],
+        "text": "Automatic",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          850,
+          29,
+          854,
+          49
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          833,
+          30,
+          850,
+          48
+        ],
+        "text": "More options",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          34,
+          51,
+          85,
+          86
+        ],
+        "text": "ICAPP",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          731,
+          51,
+          851,
+          87
+        ],
+        "text": "ashimaj@iiitd.ac in",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          2,
+          52,
+          34,
+          85
+        ],
+        "text": "All Sheets",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          154,
+          92,
+          214,
+          113
+        ],
+        "text": "Chodsi",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          225,
+          97,
+          269,
+          109
+        ],
+        "text": "HWZ pdl",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          100,
+          130,
+          131
+        ],
+        "text": "Home",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          405,
+          103,
+          489,
+          115
+        ],
+        "text": "Microphone active",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          494,
+          104,
+          522,
+          112
+        ],
+        "text": "spea\":",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          534,
+          104,
+          568,
+          112
+        ],
+        "text": "interact",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          130,
+          148,
+          162
+        ],
+        "text": "Application",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          162,
+          147,
+          194
+        ],
+        "text": "Project Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          317,
+          177,
+          427,
+          197
+        ],
+        "text": "Algorithm Logic",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          193,
+          141,
+          225
+        ],
+        "text": "Course Tasks",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          167,
+          207,
+          187,
+          225
+        ],
+        "text": "Polishes",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          0,
+          224,
+          139,
+          258
+        ],
+        "text": "Logout",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          193,
+          239,
+          207,
+          255
+        ],
+        "text": "Perform",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          194,
+          297,
+          206,
+          311
+        ],
+        "text": "Add button",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          617,
+          317,
+          663,
+          329
+        ],
+        "text": "cvaluating",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          189,
+          327,
+          247,
+          341
+        ],
+        "text": "MCTS Agent",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          676,
+          334,
+          708,
+          342
+        ],
+        "text": "prO ECI",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          193,
+          354,
+          207,
+          370
+        ],
+        "text": "Add date and time",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          728,
+          359,
+          749,
+          373
+        ],
+        "text": "ThisThis",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          193,
+          370,
+          207,
+          385
+        ],
+        "text": "More options",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          661,
+          375,
+          731,
+          389
+        ],
+        "text": "being recerdad",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          606,
+          389,
+          625,
+          401
+        ],
+        "text": "M0,0L0,5 4.5,5z",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          295,
+          436,
+          351,
+          461
+        ],
+        "text": "Previous",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          405,
+          437,
+          445,
+          463
+        ],
+        "text": "Next",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          754,
+          438,
+          769,
+          451
+        ],
+        "text": "A blank space for an item or document.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "button",
+        "bbox": [
+          770,
+          438,
+          817,
+          465
+        ],
+        "text": "Send",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_ocr"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          503,
+          486,
+          529,
+          508
+        ],
+        "text": "Universal Station",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          404,
+          487,
+          431,
+          513
+        ],
+        "text": "Notifications.",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          436,
+          488,
+          462,
+          511
+        ],
+        "text": "Camera",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          529,
+          505,
+          558,
+          525
+        ],
+        "text": "High",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "icon",
+        "bbox": [
+          148,
+          510,
+          162,
+          525
+        ],
+        "text": "Unanswerable",
+        "caption": null,
+        "interactive": true,
+        "confidence": 1.0,
+        "source": "box_yolo_content_yolo"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          386,
+          512,
+          430,
+          518
+        ],
+        "text": "HilarnaMIt",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      },
+      {
+        "type": "text",
+        "bbox": [
+          490,
+          512,
+          520,
+          520
+        ],
+        "text": "sharing",
+        "caption": null,
+        "interactive": false,
+        "confidence": 1.0,
+        "source": "box_ocr_content_ocr"
+      }
+    ],
+    "overlays": []
+  }
+]

@@ -1,40 +1,47 @@
 # Batch Mode
 
-Batch mode analyzes recorded meetings and produces a durable report. It is built for long presentations, evaluated demos, course/project reviews, walkthroughs, and any session where the final artifact should be more useful than a raw transcript.
+Batch mode is the offline research pipeline for recorded screen-share meetings. It converts a public MP4 URL or local video into structured visual events, transcript-linked state changes, topic units, and a final Markdown report.
 
-The pipeline accepts a local video file or a public MP4 URL, including Bunny CDN links. It produces structured visual events, transcript-aligned summaries, topic units, and a final Markdown report.
+The mode is designed for long demos, class/project evaluations, code walkthroughs, slide-heavy meetings, and cluster runs where the output must be auditable after the meeting ends.
 
-## Bunny Validation Source
+## Validation Source
 
-The documentation assets in this repository are generated from:
+The committed validation assets use this Bunny sample:
 
 ```text
 https://vz-e4eb54a1-90d.b-cdn.net/39864ba9-c74e-4cfa-a088-58ec2a08c699/play_480p.mp4
 ```
 
+Five varied states are sampled: title screen, game rules, simulation environment, agent table, and algorithm logic.
+
 <p align="center">
-  <img src="../docs/assets/segment_validation_contact_sheet.jpg" alt="Bunny sample raw frames and page segment overlays" width="920">
+  <img src="../docs/assets/segment_validation_contact_sheet.jpg" alt="Bunny macro page-segment validation" width="920">
 </p>
 
-## What The Pipeline Does
+<p align="center">
+  <img src="../docs/assets/micro_validation_contact_sheet.jpg" alt="Bunny micro element validation" width="920">
+</p>
+
+## Pipeline
 
 ```text
 Video URL / local MP4
   -> source resolver and downloader
   -> optional Deepgram transcript
-  -> frame sampling
-  -> screen mode routing
-  -> cursor detection and masking
+  -> frame sampling and mode routing
+  -> cursor detection and cursor masking
   -> macro page segmentation
-  -> OmniParser UI parsing on full frames or changed crops
-  -> OCR / slide / code extraction
-  -> topic segmentation and topic linking
-  -> report section construction
-  -> mock, Gemini, OpenRouter, Qwen, or local HF writer
+  -> OmniParser micro-element extraction
+  -> OCR / Surya slide layout / code text extraction
+  -> changed-region cache and state merge
+  -> transcript-window alignment
+  -> topic segmentation and global topic linking
+  -> report section builder
+  -> mock, Gemini, OpenRouter, local HF Mistral, or Qwen writer
   -> analysis.json + report.md
 ```
 
-The core trick is that the analyzer does not treat every frame as a fresh problem. It caches stable layout, reparses changed regions, carries forward unchanged UI elements, and aligns transcript windows to visual events. That keeps long videos tractable while preserving enough evidence for a readable report.
+The key idea is evidence reuse. Stable frames are not treated as brand-new images. The analyzer caches macro layout, reparses only changed crops when safe, carries forward unchanged UI elements, and attaches each visual event to the transcript window that happened since the previous visual change.
 
 ## Outputs
 
@@ -46,59 +53,79 @@ batch_mode/outputs/<run_name>/
 `-- report.md           # Human-readable final report
 ```
 
-Validation artifacts:
+Important fields in `analysis.json`:
 
-```text
-docs/assets/
-+-- segment_validation_contact_sheet.jpg
-+-- class_gallery.png
-+-- metrics_dashboard.png
-+-- validation_metrics.json
-+-- frame_0002_raw.jpg
-+-- frame_0002_segments.jpg
-`-- ...
-```
+| Field | Meaning |
+| --- | --- |
+| `frame_events` | Per-frame screen state, visual payload, cursor target, transcript window |
+| `topic_units` | Time-bounded units grouped by mode, OCR, visual summaries, and transcript |
+| `topic_clusters` | Cross-unit semantic clusters from the global linker |
+| `report_sections` | Evidence-backed section prompts and prewritten deterministic sections |
+| `metrics` / timings | Runtime and stage timing metadata when available |
 
-## Current Bunny Metrics
+## Macro Segmentation Metrics
 
 <p align="center">
-  <img src="../docs/assets/metrics_dashboard.png" alt="Validation metrics dashboard" width="920">
+  <img src="../docs/assets/metrics_dashboard.png" alt="Macro validation metrics" width="920">
 </p>
 
 | Metric | Value |
 | --- | ---: |
-| Sampled frames | `6` |
-| Sample timestamps | `2s, 15s, 58s, 100s, 145s, 205s` |
+| Sampled frames | `5` |
+| Sample timestamps | `2s, 58s, 100s, 145s, 205s` |
 | Mean grid coverage | `100.00%` |
-| High-confidence regions | `13` |
+| High-confidence regions | `11` |
 | Low-confidence retained regions | `4` |
-
-Detected classes on the Bunny validation frames:
 
 | Class | Detected frames | Example score | Source |
 | --- | ---: | ---: | --- |
-| `header` | `6 / 6` | `0.8823` | `uitag-yolo` |
-| `left_sidebar` | `5 / 6` | `0.8042` | `uitag-yolo` |
-| `main_content` | `6 / 6` | `0.8823` | `uitag-yolo-coverage` |
+| `header` | `5 / 5` | `0.8049` | `uitag-yolo` |
+| `left_sidebar` | `5 / 5` | `0.7755` | `uitag-yolo` |
+| `main_content` | `5 / 5` | `0.8049` | `uitag-yolo-coverage` |
 
-The segmentation policy now favors precision. If the detector cannot prove a real sidebar, the area remains part of `main_content` instead of being labeled as a decorative sidebar false positive.
+Sidebar precision is intentionally conservative. Wide left-edge content does not become a sidebar unless it has rail-like geometry, compact width, vertical repetition, and enough screen-height coverage.
+
+## Micro Element Metrics
 
 <p align="center">
-  <img src="../docs/assets/class_gallery.png" alt="Class gallery for generated page segments" width="920">
+  <img src="../docs/assets/micro_metrics_dashboard.png" alt="Micro validation metrics" width="920">
 </p>
 
-## Models And Methods
+| Metric | Value |
+| --- | ---: |
+| Parsed Bunny frames | `5` |
+| OmniParser elements | `296` |
+| Mean elements per frame | `59.2` |
+| Interactive elements | `259` |
+| Elements with text or caption content | `296` |
 
-| Component | Model / method | Purpose |
+Element type distribution:
+
+| Type | Count |
+| --- | ---: |
+| `icon` | `234` |
+| `text` | `37` |
+| `button` | `21` |
+| `tab` | `3` |
+| `input` | `1` |
+
+Micro elements are assigned back to their parent macro region before report construction. That lets the report say not only that a button appeared, but whether it appeared in the main content, header, navigation rail, or a changed crop.
+
+## Models And Techniques
+
+| Component | Implementation | Why it is used |
 | --- | --- | --- |
-| Screen mode router | SigLIP plus sticky routing | Separates demo, slide, code, and other screens without rapid mode flapping |
-| Macro layout | `swaylenhayes/uitag-yolo11s-ui-detect-v1` weights in `real_time_mode/vendor/uitag/yolo-ui.pt` | Detects coarse page regions such as header, sidebar, and main content |
-| UI parsing | OmniParser icon detector and caption stack | Extracts buttons, text fields, icons, controls, and captions |
-| OCR | EasyOCR / RapidOCR path through the adapter | Reads slide/code/demo text when object captions are not enough |
-| Cursor | YOLO cursor detector plus motion/template fallback | Tracks pointer location, hotspot, and nearby UI target |
-| Change detection | SSIM and changed-region boxes | Avoids reparsing stable screens; crop-refreshes changed areas |
-| Topic grouping | BGE-M3 embeddings and temporal heuristics | Groups visual events and transcript into coherent report units |
-| Report writer | Mock, Gemini, OpenRouter, local HF, Mistral, or Qwen | Produces the final Markdown report from structured sections |
+| Mode router | SigLIP/SigLIP2 prompt bank with positive and negative prompts | Separates slide, demo, code, and other frames before expensive parsing |
+| Sticky routing | Confidence floors, margins, and previous-mode guards | Prevents rapid mode flapping during mixed slide/demo screens |
+| Macro layout | yolo-ui detector plus geometry post-processing | Finds header/sidebar/main-content regions while suppressing false sidebars |
+| Coverage fallback | Grid coverage assignment to `main_content` | Ensures every important screen area belongs to a macro region |
+| Micro parsing | OmniParser v2 icon detector and caption stack | Extracts controls, icons, text boxes, and visible UI elements |
+| OCR | EasyOCR for GPU-oriented dense text, RapidOCR for CPU throughput, optional PaddleOCR path | Reads code, slide, and UI text when captions are weak |
+| Surya slide path | Surya layout/OCR predictors when installed, OCR-derived fallback otherwise | Produces slide title, block types, reading order, and duplicate-slide fingerprints |
+| Cursor model | YOLO cursor detector with motion/template fallback | Links pointer movement to UI elements and macro regions |
+| Change detection | SSIM, changed-pixel ratio, crop boxes, and mode thresholds | Avoids full reparse on unchanged frames |
+| Topic linker | BGE-M3 embeddings plus time/mode heuristics | Groups screen events and transcript into coherent report sections |
+| Report writers | Mock, Gemini, OpenRouter, local HF Mistral, Qwen | Supports deterministic smoke tests and production-quality Markdown |
 
 ## Setup
 
@@ -120,18 +147,28 @@ pip install -r batch_mode\requirements.txt
 Copy-Item batch_mode\.env.example batch_mode\.env
 ```
 
-Fill `batch_mode/.env` with real keys. For a no-LLM smoke test, keep:
+For a local smoke test with no LLM calls:
 
 ```env
 BATCH_LLM_BACKEND=mock
 BATCH_LLM_MOCK_ENABLED=1
 BATCH_LLM_USE_PREWRITTEN=1
 BATCH_EMBEDDING_DEVICE=cpu
+OCR_MODE=cpu
+```
+
+For GPU OCR:
+
+```env
+OCR_MODE=gpu
+OCR_BACKEND_GPU=easyocr
+OCR_BACKEND_CPU=rapidocr
+SURYA_ENABLED=1
 ```
 
 ## Missing Large Model
 
-The OmniParser caption model is too large for normal git storage:
+The OmniParser caption checkpoint is intentionally not committed:
 
 ```text
 batch_mode/vendor/OmniParser/weights/icon_caption/model.safetensors
@@ -175,17 +212,34 @@ print("Downloaded OmniParser caption model.")
 '@ | python -
 ```
 
-Without the caption model, icon boxes and OCR still work, but semantic icon labels are weaker.
+Without this file, full OmniParser v2 will download the missing checkpoint when `HF_API_KEY` is available. With no token and no checkpoint, macro segmentation, cursor detection, OCR, and report assembly can still be tested, but OmniParser micro-element captioning is unavailable.
+
+## Optional Surya Installation
+
+Batch mode contains the full Surya predictor integration. It uses:
+
+- `FoundationPredictor`
+- `LayoutPredictor`
+- `RecognitionPredictor`
+- `DetectionPredictor`
+
+Install the package that provides the `surya` module when slide layout/OCR quality matters:
+
+```bash
+pip install surya-ocr
+```
+
+If Surya is missing or `SURYA_ENABLED=0`, the slide analyzer falls back to OCR-derived layout blocks. The fallback still emits title, text/list/table/figure guesses, reading order, slide fingerprint, and confidence.
 
 ## Run Through The API
 
-Start the local service:
+Start the service:
 
 ```bash
 python -m uvicorn batch_mode.api:app --host 0.0.0.0 --port 8000
 ```
 
-Analyze the Bunny sample with a mock writer:
+Analyze the Bunny sample locally:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/analyze \
@@ -197,7 +251,7 @@ curl -X POST http://127.0.0.1:8000/api/analyze \
   }'
 ```
 
-Submit through the API to a configured Slurm cluster:
+Submit to a configured Slurm cluster:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/analyze/cluster \
@@ -209,7 +263,7 @@ curl -X POST http://127.0.0.1:8000/api/analyze/cluster \
   }'
 ```
 
-Batch-submit multiple videos sequentially:
+Submit several videos:
 
 ```bash
 curl -X POST http://127.0.0.1:8000/api/analyze/cluster/batch \
@@ -227,12 +281,10 @@ curl -X POST http://127.0.0.1:8000/api/analyze/cluster/batch \
 
 ## Run Directly On A Cluster
 
-On the login node:
-
 ```bash
 cd /path/to/Meet-Analyzer
 cp batch_mode/.env.example batch_mode/.env
-# edit batch_mode/.env with cluster paths, API keys, and writer backend
+# edit batch_mode/.env with cluster paths, keys, partition, conda env, and writer backend
 
 bash batch_mode/myproject/submit_cluster_source.sh \
   --writer mock \
@@ -240,45 +292,48 @@ bash batch_mode/myproject/submit_cluster_source.sh \
   bunny_480p.mp4
 ```
 
-For several sources:
+Cluster options are read from `batch_mode/.env`:
 
-```bash
-bash batch_mode/myproject/submit_cluster_batch.sh \
-  --writer mistral \
-  --title-prefix demo_eval \
-  --file links.txt
+```env
+BATCH_CLUSTER_HOST=
+BATCH_CLUSTER_USER=
+BATCH_CLUSTER_ACCOUNT=
+BATCH_CLUSTER_CONDA_ENV=torch_clean
+BATCH_CLUSTER_PARTITION=short
+BATCH_CLUSTER_GRES=gpu:3g.40gb:1
+BATCH_CLUSTER_PROJECT_DIR=/path/to/Meet-Analyzer
+BATCH_CLUSTER_LOG_DIR=/path/to/Meet-Analyzer/batch_mode/myproject/logs
 ```
 
-The submitter downloads public URLs on the login node, prepares transcript sidecars, writes a request JSON, and submits `batch_mode/myproject/sbatch_script/script.sh`. Jobs can be chained with Slurm `afterany` dependencies.
-
-## Rebuild Validation Assets
+## Rebuild The Documentation Assets
 
 ```bash
 python docs/generate_segment_validation.py \
   --source "https://vz-e4eb54a1-90d.b-cdn.net/39864ba9-c74e-4cfa-a088-58ec2a08c699/play_480p.mp4" \
   --output-dir docs/assets \
-  --times "2,15,58,100,145,205" \
+  --times "2,58,100,145,205" \
   --weights real_time_mode/vendor/uitag/yolo-ui.pt \
   --device cpu
+
+python docs/generate_micro_validation.py \
+  --frames "docs/assets/frame_0002_raw.jpg,docs/assets/frame_0058_raw.jpg,docs/assets/frame_0100_raw.jpg,docs/assets/frame_0145_raw.jpg,docs/assets/frame_0205_raw.jpg" \
+  --output-dir docs/assets \
+  --repo-dir real_time_mode/vendor/OmniParser \
+  --weights-dir real_time_mode/vendor/OmniParser/weights \
+  --imgsz 512
 
 python docs/build_readme_assets.py
 ```
 
-PowerShell uses the same command with backticks for line continuation.
-
 ## Verification
 
-Current local checks:
-
 ```bash
-python -m pytest real_time_mode/tests/test_live_latest_frames.py real_time_mode/tests/test_macro_layout.py real_time_mode/tests/test_pipeline_modes.py batch_mode/tests/test_batch_mode.py -q
-python -m py_compile real_time_mode/live_app.py real_time_mode/modal_app.py real_time_mode/config.py
+python -m pytest real_time_mode/tests batch_mode/tests -q
+python -m py_compile real_time_mode/live_app.py real_time_mode/modal_app.py real_time_mode/config.py batch_mode/config.py batch_mode/api.py batch_mode/service.py
 ```
 
-Result:
+Current local result:
 
 ```text
-45 passed, 4 third-party deprecation warnings
+47 passed, 4 third-party deprecation warnings
 ```
-
-The Bunny segmentation asset generation was also run successfully and wrote `docs/assets/validation_metrics.json`.

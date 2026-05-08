@@ -57,8 +57,8 @@ def text(draw: ImageDraw.ImageDraw, xy: tuple[int, int], value: str, size: int, 
 def build_architecture() -> None:
     img = Image.new("RGB", (1800, 900), BG)
     draw = ImageDraw.Draw(img)
-    text(draw, (70, 55), "Meet Analyzer Batch Pipeline", 48, bold=True)
-    text(draw, (70, 118), "From raw meeting video to evidence-backed Markdown report", 24, MUTED)
+    text(draw, (70, 55), "Meet Analyzer Pipeline", 48, bold=True)
+    text(draw, (70, 118), "From screen-share video or live frames to evidence-backed meeting intelligence", 24, MUTED)
 
     stages = [
         ("Video Input", "Local MP4 or public Bunny/CDN URL", BLUE),
@@ -105,10 +105,11 @@ def build_metrics() -> None:
     img = Image.new("RGB", (1800, 1050), BG)
     draw = ImageDraw.Draw(img)
     text(draw, (70, 55), "Validation Metrics", 48, bold=True)
-    text(draw, (70, 118), "Bunny sample, six keyframes, raw frame vs generated segment overlays", 24, MUTED)
+    sample_times = ", ".join(f"{int(t)}" if float(t).is_integer() else f"{t:g}" for t in metrics.get("sample_times_sec", []))
+    text(draw, (70, 118), f"Bunny sample, {metrics['frames_sampled']} varied keyframes, raw frame vs generated segment overlays", 24, MUTED)
 
     cards = [
-        ("Frames", str(metrics["frames_sampled"]), "sampled at 2, 15, 58, 100, 145, 205s", BLUE),
+        ("Frames", str(metrics["frames_sampled"]), f"sampled at {sample_times}s", BLUE),
         ("Coverage", f"{metrics['mean_grid_coverage_pct']:.0f}%", "mean grid coverage across frames", GREEN),
         ("High Conf", str(metrics["high_conf_region_count"]), "regions at or above 0.75", ORANGE),
         ("Low Conf", str(metrics["low_conf_region_count"]), "regions retained for coverage", PURPLE),
@@ -129,26 +130,83 @@ def build_metrics() -> None:
         for index, (name, data) in enumerate(metrics.get("classes", {}).items())
     ]
     y = 560
+    frame_count = max(1, int(metrics["frames_sampled"]))
     for name, data, color in class_rows:
         detected = int(data["detected_in_frames"])
         score = float(data["score"])
         text(draw, (110, y), name, 23, INK, bold=True)
         draw.rounded_rectangle((330, y + 6, 930, y + 34), radius=14, fill="#e8edf6")
-        draw.rounded_rectangle((330, y + 6, 330 + int(600 * detected / 6), y + 34), radius=14, fill=color)
-        text(draw, (960, y - 2), f"{detected}/6 frames", 22, INK, bold=True)
+        draw.rounded_rectangle((330, y + 6, 330 + int(600 * detected / frame_count), y + 34), radius=14, fill=color)
+        text(draw, (960, y - 2), f"{detected}/{frame_count} frames", 22, INK, bold=True)
         text(draw, (1130, y - 2), f"example score {score:.2f}", 22, MUTED)
         text(draw, (1410, y - 2), data["source"], 22, MUTED)
         y += 72
 
     text(
         draw,
-        (105, 900),
+        (105, 850),
         "Current Bunny validation favors precision over decorative segmentation: unsupported sidebars are suppressed, while coverage falls back to main_content.",
-        21,
+        20,
         MUTED,
-        width=1520,
+        width=1450,
     )
     img.save(ASSETS / "metrics_dashboard.png", quality=95)
+
+
+def build_micro_metrics() -> None:
+    metrics_path = ASSETS / "micro_validation_metrics.json"
+    if not metrics_path.exists():
+        return
+    metrics = json.loads(metrics_path.read_text(encoding="utf-8"))
+    img = Image.new("RGB", (1800, 1100), BG)
+    draw = ImageDraw.Draw(img)
+    text(draw, (70, 55), "Micro-Element Validation", 48, bold=True)
+    text(draw, (70, 118), "OmniParser element extraction on the same Bunny keyframes used for macro validation.", 24, MUTED)
+
+    cards = [
+        ("Frames", str(metrics["frames_sampled"]), "same varied Bunny keyframes", BLUE),
+        ("Elements", str(metrics["total_elements"]), "detected UI boxes", GREEN),
+        ("Mean / Frame", f"{metrics['mean_elements_per_frame']:.1f}", "micro boxes per frame", ORANGE),
+        ("With Text", str(metrics["text_or_caption_elements"]), "OCR or caption content attached", PURPLE),
+    ]
+    x = 70
+    for title, value, body, color in cards:
+        rounded(draw, (x, 210, x + 385, 390), "white", "#cad2e0", radius=24, width=2)
+        text(draw, (x + 30, 238), title, 24, MUTED, bold=True)
+        text(draw, (x + 30, 278), value, 58, color, bold=True)
+        text(draw, (x + 30, 348), body, 18, MUTED, width=320)
+        x += 430
+
+    rounded(draw, (70, 460, 865, 985), "white", "#cad2e0", radius=24, width=2)
+    text(draw, (105, 495), "Element type distribution", 30, bold=True)
+    y = 560
+    type_counts = list((metrics.get("type_counts") or {}).items())[:8]
+    max_count = max([int(value) for _, value in type_counts] or [1])
+    palette = [BLUE, GREEN, ORANGE, PURPLE, RED, "#0f766e", "#4b5563", "#be123c"]
+    for index, (name, value) in enumerate(type_counts):
+        value = int(value)
+        color = palette[index % len(palette)]
+        text(draw, (110, y), str(name), 22, INK, bold=True)
+        draw.rounded_rectangle((305, y + 7, 730, y + 33), radius=13, fill="#e8edf6")
+        draw.rounded_rectangle((305, y + 7, 305 + int(425 * value / max_count), y + 33), radius=13, fill=color)
+        text(draw, (750, y - 2), str(value), 22, MUTED)
+        y += 56
+
+    rounded(draw, (935, 460, 1730, 985), "white", "#cad2e0", radius=24, width=2)
+    text(draw, (970, 495), "Per-frame parser load", 30, bold=True)
+    y = 560
+    frame_metrics = metrics.get("frame_metrics", [])
+    max_elements = max([int(item.get("element_count", 0)) for item in frame_metrics] or [1])
+    for item in frame_metrics:
+        count = int(item.get("element_count", 0))
+        time_sec = item.get("time_sec", 0)
+        text(draw, (975, y), f"{time_sec:g}s", 22, INK, bold=True)
+        draw.rounded_rectangle((1095, y + 7, 1525, y + 33), radius=13, fill="#e8edf6")
+        draw.rounded_rectangle((1095, y + 7, 1095 + int(430 * count / max_elements), y + 33), radius=13, fill=BLUE)
+        text(draw, (1545, y - 2), f"{count} boxes", 22, MUTED)
+        y += 56
+    text(draw, (970, 890), "Micro regions are linked back to parent macro regions during live and batch state assembly.", 21, MUTED, width=680)
+    img.save(ASSETS / "micro_metrics_dashboard.png", quality=95)
 
 
 def build_class_gallery() -> None:
@@ -182,12 +240,12 @@ def build_class_gallery() -> None:
 def build_report_preview() -> None:
     report = (ROOT / "batch_mode" / "outputs" / "mini_interval_report" / "report.md").read_text(encoding="utf-8")
     cleaned = (
-        report.replace("â€œ", '"')
-        .replace("â€", '"')
-        .replace("â€™", "'")
-        .replace("â€“", "-")
-        .replace("â€‘", "-")
-        .replace("â€¯", " ")
+        report.replace("\u00e2\u20ac\u0153", '"')
+        .replace("\u00e2\u20ac\u009d", '"')
+        .replace("\u00e2\u20ac\u2122", "'")
+        .replace("\u00e2\u20ac\u201c", "-")
+        .replace("\u00e2\u20ac\u2018", "-")
+        .replace("\u00e2\u20ac\u00af", " ")
     )
     lines = [line for line in cleaned.splitlines() if line.strip()]
     excerpt = "\n".join(lines[:28])
@@ -216,6 +274,7 @@ def build_report_preview() -> None:
 def main() -> int:
     build_architecture()
     build_metrics()
+    build_micro_metrics()
     build_class_gallery()
     build_report_preview()
     print("README assets rebuilt in docs/assets")

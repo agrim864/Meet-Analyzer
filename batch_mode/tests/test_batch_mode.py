@@ -12,6 +12,7 @@ from batch_mode.omniparser_adapter import OmniParserAdapter
 from batch_mode.pipeline import DemoAnalyzerPipeline, _build_demo_screen_structure
 from batch_mode.segmenter import TopicSegmenter
 from batch_mode.service import BatchMeetingAnalyzer, _supports_local_qwen, build_report_sections
+from batch_mode.slide_adapter import SuryaSlideAnalyzer
 from batch_mode.state import LayoutGroup, UIElement
 from batch_mode.topic_linking import GlobalTopicLinker
 
@@ -301,6 +302,11 @@ class BatchModeTests(unittest.TestCase):
         guarded = _guard_generated_section("meeting_narrative_section", payload, cleaned)
 
         self.assertEqual(guarded, "Evidence-only timeline from OCR and transcript.")
+
+    def test_surya_enabled_flag_controls_slide_analyzer(self) -> None:
+        with patch("batch_mode.slide_adapter._detect_surya", return_value=True):
+            self.assertTrue(SuryaSlideAnalyzer(enabled=True)._surya_available)
+            self.assertFalse(SuryaSlideAnalyzer(enabled=False)._surya_available)
 
 
 if __name__ == "__main__":

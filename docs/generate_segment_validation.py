@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -34,9 +35,11 @@ CLASS_EXAMPLES = {
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate raw-vs-segment proof images for README validation.")
-    parser.add_argument("--source", required=True, help="Local MP4 path or public video URL.")
+    parser.add_argument("--source", default="", help="Local MP4 path or public video URL.")
     parser.add_argument("--output-dir", default="docs/assets", help="Directory for proof images and metrics.")
-    parser.add_argument("--times", default="2,15,58,100,145,205", help="Comma-separated sample times in seconds.")
+    parser.add_argument("--times", default="2,58,100,145,205", help="Comma-separated sample times in seconds.")
+    parser.add_argument("--raw-frames", default="", help="Optional comma-separated raw frame image paths. When set, --source is not opened.")
+    parser.add_argument("--raw-frame-glob", default="", help="Optional glob for raw frame image paths. Used when --raw-frames is empty.")
     parser.add_argument("--weights", default="real_time_mode/vendor/uitag/yolo-ui.pt", help="Path or HF repo for yolo-ui weights.")
     parser.add_argument("--device", default="cpu", help="Detector device, for example cpu or cuda:0.")
     args = parser.parse_args()
@@ -45,7 +48,12 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     times = [float(item.strip()) for item in args.times.split(",") if item.strip()]
     detector = MacroLayoutDetector(args.weights, device=args.device, tile_size=640, tile_step=512, max_det=128)
-    records = _sample_and_detect(args.source, output_dir, times, detector)
+    if args.raw_frames or args.raw_frame_glob:
+        records = _load_and_detect_existing_frames(args.raw_frames, args.raw_frame_glob, output_dir, detector)
+    else:
+        if not args.source:
+            raise RuntimeError("Set --source, --raw-frames, or --raw-frame-glob.")
+        records = _sample_and_detect(args.source, output_dir, times, detector)
     if not records:
         raise RuntimeError("No frames were sampled from the input video.")
     _write_contact_sheet(records, output_dir)
@@ -53,6 +61,74 @@ def main() -> int:
     (output_dir / "validation_metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     print(json.dumps({"output_dir": str(output_dir), "frames": len(records), "metrics": metrics}, indent=2))
     return 0
+
+
+def _load_and_detect_existing_frames(raw_frames: str, raw_frame_glob: str, output_dir: Path, detector: MacroLayoutDetector) -> list[dict]:
+    paths: list[Path] = []
+    if raw_frames:
+        paths.extend(Path(item.strip()) for item in raw_frames.split(",") if item.strip())
+    if raw_frame_glob:
+        paths.extend(sorted(Path().glob(raw_frame_glob)))
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in paths:
+        resolved = str(path)
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique.append(path)
+
+    records: list[dict] = []
+    for path in unique:
+        frame = cv2.imread(str(path))
+        if frame is None:
+            continue
+        time_sec = _time_from_frame_path(path)
+        groups = detector.detect(frame)
+        overlay = frame.copy()
+        for group in groups:
+            x1, y1, x2, y2 = [int(v) for v in group.bbox]
+            color = COLORS.get(group.label, (200, 200, 200))
+            cv2.rectangle(overlay, (x1, y1), (x2, y2), color, 3)
+            label = f"{group.label} {group.score:.2f} {group.source}"
+            cv2.rectangle(overlay, (x1, max(0, y1 - 24)), (min(frame.shape[1], x1 + 380), y1), color, -1)
+            cv2.putText(overlay, label, (x1 + 4, max(16, y1 - 6)), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 0), 2, cv2.LINE_AA)
+        stem = path.name.replace("_raw", "").rsplit(".", 1)[0]
+        raw_path = output_dir / f"{stem}_raw.jpg"
+        overlay_path = output_dir / f"{stem}_segments.jpg"
+        if path.resolve() != raw_path.resolve():
+            cv2.imwrite(str(raw_path), frame)
+        cv2.imwrite(str(overlay_path), overlay)
+        records.append(
+            {
+                "time_sec": time_sec,
+                "raw": str(raw_path),
+                "overlay": str(overlay_path),
+                "groups": [
+                    {
+                        "label": group.label,
+                        "bbox": list(group.bbox),
+                        "score": float(group.score),
+                        "source": group.source,
+                    }
+                    for group in groups
+                ],
+            }
+        )
+    records.sort(key=lambda item: float(item["time_sec"]))
+    (output_dir / "segments.json").write_text(json.dumps(records, indent=2), encoding="utf-8")
+    return records
+
+
+def _time_from_frame_path(path: Path) -> float:
+    match = re.search(r"frame_(\d+(?:\.\d+)?)", path.stem)
+    if not match:
+        return 0.0
+    raw = match.group(1)
+    try:
+        return float(raw)
+    except ValueError:
+        return 0.0
 
 
 def _sample_and_detect(source: str, output_dir: Path, times: list[float], detector: MacroLayoutDetector) -> list[dict]:

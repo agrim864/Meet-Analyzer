@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 import cv2
 import numpy as np
@@ -10,7 +11,7 @@ from real_time_mode.ocr_adapter import OCRResult
 from real_time_mode.omniparser_adapter import ParsePayload
 from real_time_mode.pipeline import DemoAnalyzerPipeline
 from real_time_mode.frame_summarizer import FrameSummaryRequest
-from real_time_mode.slide_adapter import SlideAnalysis, SlideLayoutBlock
+from real_time_mode.slide_adapter import SlideAnalysis, SlideLayoutBlock, SuryaSlideAnalyzer
 from real_time_mode.state import CursorState, LayoutGroup, UIElement
 from real_time_mode.stt_adapter import UtteranceStore
 
@@ -335,6 +336,11 @@ class PipelineModesTests(unittest.TestCase):
         self.assertTrue(changed)
         self.assertEqual(decision.mode, "demo")
         self.assertEqual(decision.scores["demo"], 1.0)
+
+    def test_surya_enabled_flag_controls_slide_analyzer(self):
+        with patch("real_time_mode.slide_adapter._detect_surya", return_value=True):
+            self.assertTrue(SuryaSlideAnalyzer(enabled=True)._surya_available)
+            self.assertFalse(SuryaSlideAnalyzer(enabled=False)._surya_available)
 
 
 if __name__ == "__main__":

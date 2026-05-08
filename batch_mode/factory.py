@@ -51,7 +51,7 @@ def build_runtime_components(settings: BatchModeSettings | None = None) -> Runti
         iou=settings.macro_layout_iou,
     )
     ocr = OCRTextExtractor(requested_mode=settings.ocr_mode, ocr_lang=settings.ocr_lang)
-    slide = SuryaSlideAnalyzer(ocr)
+    slide = SuryaSlideAnalyzer(ocr, enabled=settings.surya_enabled)
     router = ModeRouter(
         immediate_switch_confidence=settings.route_immediate_confidence,
         sticky_confidence_floor=settings.route_sticky_floor,

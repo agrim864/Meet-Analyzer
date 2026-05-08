@@ -1,0 +1,97 @@
+{
+  "frames_sampled": 5,
+  "sample_times_sec": [
+    2.0,
+    58.0,
+    100.0,
+    145.0,
+    205.0
+  ],
+  "total_elements": 296,
+  "mean_elements_per_frame": 59.2,
+  "interactive_elements": 259,
+  "text_or_caption_elements": 296,
+  "type_counts": {
+    "icon": 234,
+    "text": 37,
+    "button": 21,
+    "tab": 3,
+    "input": 1
+  },
+  "source_counts": {
+    "box_yolo_content_yolo": 201,
+    "box_yolo_content_ocr": 58,
+    "box_ocr_content_ocr": 37
+  },
+  "frame_metrics": [
+    {
+      "time_sec": 2.0,
+      "provider": "omniparser_repo_v2",
+      "element_count": 52,
+      "interactive_count": 46,
+      "text_or_caption_count": 52,
+      "overlay_count": 0,
+      "top_types": {
+        "icon": 40,
+        "text": 6,
+        "button": 5,
+        "tab": 1
+      }
+    },
+    {
+      "time_sec": 58.0,
+      "provider": "omniparser_repo_v2",
+      "element_count": 60,
+      "interactive_count": 53,
+      "text_or_caption_count": 60,
+      "overlay_count": 0,
+      "top_types": {
+        "icon": 49,
+        "text": 7,
+        "button": 3,
+        "tab": 1
+      }
+    },
+    {
+      "time_sec": 100.0,
+      "provider": "omniparser_repo_v2",
+      "element_count": 62,
+      "interactive_count": 56,
+      "text_or_caption_count": 62,
+      "overlay_count": 0,
+      "top_types": {
+        "icon": 51,
+        "text": 6,
+        "button": 4,
+        "tab": 1
+      }
+    },
+    {
+      "time_sec": 145.0,
+      "provider": "omniparser_repo_v2",
+      "element_count": 61,
+      "interactive_count": 55,
+      "text_or_caption_count": 61,
+      "overlay_count": 0,
+      "top_types": {
+        "icon": 49,
+        "text": 6,
+        "button": 5,
+        "input": 1
+      }
+    },
+    {
+      "time_sec": 205.0,
+      "provider": "omniparser_repo_v2",
+      "element_count": 61,
+      "interactive_count": 49,
+      "text_or_caption_count": 61,
+      "overlay_count": 0,
+      "top_types": {
+        "icon": 45,
+        "text": 12,
+        "button": 4
+      }
+    }
+  ]
+}

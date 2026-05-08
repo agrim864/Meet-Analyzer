@@ -39,9 +39,9 @@ class SlideAnalysis:
 class SuryaSlideAnalyzer:
     """Use Surya when present, otherwise fall back to OCR-driven slide layout extraction."""
 
-    def __init__(self, ocr_extractor: Optional[OCRTextExtractor] = None) -> None:
+    def __init__(self, ocr_extractor: Optional[OCRTextExtractor] = None, *, enabled: bool = True) -> None:
         self.ocr = ocr_extractor or OCRTextExtractor()
-        self._surya_available = _detect_surya()
+        self._surya_available = bool(enabled) and _detect_surya()
 
     def warmup(self) -> None:
         self.ocr.warmup()
@@ -94,7 +94,7 @@ def _infer_slide_block_type(*, text: str, box: Sequence[int], width: int, height
     lower = compact.lower()
     if order == 1 and y1 <= int(height * 0.22) and bw >= int(width * 0.35):
         return "title"
-    if compact.startswith(("-", "*", "•")) or lower[:2].isdigit():
+    if compact.startswith(("-", "*")) or compact.startswith(chr(8226)) or lower[:2].isdigit():
         return "list"
     if "|" in compact and len(compact.split("|")) >= 3:
         return "table"
