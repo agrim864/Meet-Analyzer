@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=qwen_vllm
-#SBATCH --account=gshroff
 #SBATCH --partition=short
 #SBATCH --output=batch_mode/myproject/logs/%x_%j.out
 #SBATCH --error=batch_mode/myproject/logs/%x_%j.err
@@ -20,7 +19,7 @@ MODEL="${BATCH_LLM_MODEL:-${BATCH_QWEN_MODEL_NAME:-Qwen/Qwen3-30B-A3B-FP8}}"
 HOST="${BATCH_VLLM_HOST:-0.0.0.0}"
 PORT="${BATCH_VLLM_PORT:-8000}"
 CONDA_ENV="${BATCH_CLUSTER_CONDA_ENV:-torch_clean}"
-CONDA_BIN="${HOME}/anaconda3/bin/conda"
+CONDA_BIN="${CONDA_BIN:-${HOME}/anaconda3/bin/conda}"
 
 export PYTHONPATH="${PROJECT_DIR}:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1

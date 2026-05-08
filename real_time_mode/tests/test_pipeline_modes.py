@@ -233,6 +233,19 @@ class PipelineModesTests(unittest.TestCase):
         self.assertFalse(cached.debug["rfdetr_ran"])
         self.assertFalse(cached.debug["omniparser_ran"])
 
+    def test_demo_resolution_change_resets_change_baseline(self):
+        pipeline, _ = self.make_pipeline(cursor_boxes=[None, None])
+        pipeline.ingest_frame(frame(30, patch=(120, 90, 150, 120, 60)), timestamp_sec=0.0)
+        larger = cv2.resize(frame(30, patch=(140, 110, 170, 140, 30)), (340, 220), interpolation=cv2.INTER_NEAREST)
+        larger[0, 0, 0] = 30
+
+        second = pipeline.ingest_frame(larger, timestamp_sec=1.5)
+
+        self.assertEqual(second.mode, "demo")
+        self.assertTrue(second.visual_change)
+        self.assertIn("initial_frame", second.delta_from_previous["type"])
+        self.assertEqual(pipeline.cache.demo.prev_frame_masked.shape[:2], (220, 340))
+
     def test_transcript_alignment_uses_since_previous_visual_event(self):
         pipeline, _ = self.make_pipeline()
         pipeline.ingest_utterance(start=0.1, end=0.8, speaker="spk1", text="explaining the first code block")
@@ -268,6 +281,43 @@ class PipelineModesTests(unittest.TestCase):
         )
         self.assertIn("Upload CSV", summary)
         self.assertNotIn("M0,0L0,5", summary)
+
+    def test_micro_sidebar_inference_rejects_wide_main_content_controls(self):
+        pipeline = DemoAnalyzerPipeline.__new__(DemoAnalyzerPipeline)
+        pipeline._frame_id = 1  # pylint: disable=protected-access
+        groups = [LayoutGroup(id="group_main_content", label="main_content", bbox=(0, 0, 1200, 800), source="fallback")]
+        elements = [
+            UIElement(id=f"wide_{idx}", type="button", bbox=(30, 100 + idx * 80, 820, 130 + idx * 80), interactive=True)
+            for idx in range(7)
+        ]
+
+        augmented = pipeline._augment_macro_layout_from_micro(  # pylint: disable=protected-access
+            groups,
+            elements,
+            {"width": 1200, "height": 800},
+        )
+
+        self.assertEqual([group.label for group in augmented], ["main_content"])
+
+    def test_micro_sidebar_inference_clips_main_content_when_sidebar_is_compact(self):
+        pipeline = DemoAnalyzerPipeline.__new__(DemoAnalyzerPipeline)
+        pipeline._frame_id = 1  # pylint: disable=protected-access
+        groups = [LayoutGroup(id="group_main_content", label="main_content", bbox=(0, 0, 1200, 800), source="fallback")]
+        elements = [
+            UIElement(id=f"nav_{idx}", type="button", bbox=(20, 100 + idx * 70, 180, 130 + idx * 70), interactive=True)
+            for idx in range(8)
+        ]
+
+        augmented = pipeline._augment_macro_layout_from_micro(  # pylint: disable=protected-access
+            groups,
+            elements,
+            {"width": 1200, "height": 800},
+        )
+        left = next(group for group in augmented if group.label == "left_sidebar")
+        main = next(group for group in augmented if group.label == "main_content")
+
+        self.assertEqual(main.bbox[0], left.bbox[2])
+        self.assertGreaterEqual(main.score, left.score)
 
     def test_router_ignores_siglip_debug_scores(self):
         router = ModeRouter(immediate_switch_confidence=0.8, sticky_confidence_floor=0.45)

@@ -276,12 +276,30 @@ body {
   font-style: italic;
 }
 
+.annotation-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.annotation-compare img {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+
 @media (max-width: 1100px) {
   .layout {
     grid-template-columns: 1fr;
   }
 
   .row {
+    grid-template-columns: 1fr;
+  }
+
+  .annotation-compare {
     grid-template-columns: 1fr;
   }
 }

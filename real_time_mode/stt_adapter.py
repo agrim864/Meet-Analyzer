@@ -101,6 +101,8 @@ class DeepgramSTTAdapter:
 
     def _prepare_audio_for_deepgram(self, audio_bytes: bytes, *, mimetype: str) -> Tuple[bytes, str]:
         effective_type = str(mimetype or "audio/webm").lower()
+        if audio_bytes[:4] == b"RIFF" and audio_bytes[8:12] == b"WAVE":
+            return bytes(audio_bytes), "audio/wav"
         if effective_type in {"audio/wav", "audio/x-wav", "audio/wave"}:
             return bytes(audio_bytes), "audio/wav"
         suffix = _mime_to_suffix(effective_type)

@@ -5,6 +5,11 @@ function formatTs(seconds) {
   return `${value.toFixed(2)}s`;
 }
 
+function formatMs(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? `${number.toFixed(1)} ms` : "--";
+}
+
 function statusClass(value) {
   const text = String(value || "").toLowerCase();
   if (text.includes("error") || text.includes("failed")) return "bad";
@@ -104,6 +109,11 @@ function App() {
   const [latestChangeDebug, setLatestChangeDebug] = useState(null);
   const [framesSent, setFramesSent] = useState(0);
   const [framesSkipped, setFramesSkipped] = useState(0);
+  const [framesQueued, setFramesQueued] = useState(0);
+  const [framesDropped, setFramesDropped] = useState(0);
+  const [pendingFrameCount, setPendingFrameCount] = useState(0);
+  const [latestFrameGapMs, setLatestFrameGapMs] = useState(null);
+  const [latestAnalysisLagMs, setLatestAnalysisLagMs] = useState(null);
   const [isProcessingFrame, setIsProcessingFrame] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [sessionStatus, setSessionStatus] = useState("idle");
@@ -114,6 +124,7 @@ function App() {
   const [transcriptDraft, setTranscriptDraft] = useState("");
   const [speakerDraft, setSpeakerDraft] = useState("speaker_1");
   const [micStatus, setMicStatus] = useState("idle");
+  const [showRawJson, setShowRawJson] = useState(false);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -132,8 +143,12 @@ function App() {
   const pendingDiffRef = useRef(null);
   const captureBusyRef = useRef(false);
   const processingRef = useRef(false);
-  const pendingCaptureRef = useRef(false);
+  const inFlightFramesRef = useRef(new Map());
+  const clientFrameIdRef = useRef(0);
+  const latestAppliedFrameIdRef = useRef(0);
+  const pendingFrameRef = useRef(null);
   const transcriptBusyRef = useRef(false);
+  const transcriptDisabledRef = useRef(false);
   const pendingTranscriptBlobRef = useRef(null);
   const transcriptChunkIntervalRef = useRef(null);
   const transcriptRestartTimeoutRef = useRef(null);
@@ -145,6 +160,7 @@ function App() {
   const sessionActiveRef = useRef(false);
   const lastModeRef = useRef("unknown");
   const lastSampleTsRef = useRef(0);
+  const lastChangedFrameTsRef = useRef(0);
   const recentKeyframesRef = useRef([]);
   const recentTranscriptRef = useRef([]);
   const warmupPollRef = useRef(null);
@@ -209,9 +225,12 @@ function App() {
   }, [isSessionActive]);
 
   const frameIntervals = useMemo(
-    () => config?.frameIntervalsMs || { demo: 1000, code: 2000, slide: 3000, other: 3000, unknown: 3000 },
+    () => config?.frameIntervalsMs || { demo: 250, code: 500, slide: 750, other: 1000, unknown: 500 },
     [config]
   );
+
+  const maxInFlightFrames = Math.max(1, Number(config?.maxInFlightFrames || 2));
+  const fullFrameChangeRatio = Math.max(0.10, Number(config?.fullFrameChangeRatio || 0.55));
 
   async function insertSupabase(table, row, method = "POST", filters = "") {
     const runtimeConfig = configRef.current;
@@ -369,6 +388,9 @@ function App() {
     if (!blob || !blob.size || !sessionIdRef.current) {
       return;
     }
+    if (transcriptDisabledRef.current) {
+      return;
+    }
     if (transcriptBusyRef.current) {
       pendingTranscriptBlobRef.current = blob;
       return;
@@ -390,6 +412,13 @@ function App() {
         throw new Error(await response.text());
       }
       const payload = await response.json();
+      if (payload?.transcript_error) {
+        transcriptDisabledRef.current = true;
+        pendingTranscriptBlobRef.current = null;
+        setMicStatus("transcript unavailable");
+        setErrorMessage(String(payload.transcript_error));
+        return;
+      }
       const chunks = Array.isArray(payload?.chunks) ? payload.chunks.filter((item) => item?.text) : [];
       if (chunks.length) {
         setTranscriptHistory((prev) => {
@@ -434,9 +463,28 @@ function App() {
       return;
     }
     try {
+      const mimeType = chooseRecorderMimeType();
+      if (window.MediaRecorder && mimeType) {
+        const recorder = new MediaRecorder(audioStream, { mimeType });
+        mediaRecorderRef.current = recorder;
+        recorder.ondataavailable = (event) => {
+          if (event.data && event.data.size > 0) {
+            flushTranscriptBlob(event.data);
+          }
+        };
+        recorder.onerror = (event) => {
+          const message = event?.error?.message || "MediaRecorder failed.";
+          setMicStatus("error");
+          setErrorMessage(`Transcript capture failed: ${message}`);
+        };
+        recorder.start(10000);
+        setMicStatus("listening");
+        return;
+      }
+
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) {
-        throw new Error("AudioContext is not supported in this browser.");
+        throw new Error("No supported audio capture API was available.");
       }
       const audioContext = new AudioCtx({ sampleRate: 16000 });
       const source = audioContext.createMediaStreamSource(audioStream);
@@ -458,7 +506,7 @@ function App() {
         if (blob && blob.size > 44) {
           flushTranscriptBlob(blob);
         }
-      }, 10000);
+      }, 12000);
     } catch (err) {
       setMicStatus("error");
       setErrorMessage(`Microphone capture failed: ${err.message}`);
@@ -475,6 +523,7 @@ function App() {
   function renderWarmupDetails(runtime) {
     if (!runtime) return "Not started.";
     if (runtime.error) return `Warmup failed: ${runtime.error}`;
+    if (runtime.remote_warning) return `Remote warmup is retrying: ${runtime.remote_warning}`;
     if (runtime.warmed && runtime.deepgram_ready) return "All models and Deepgram are ready.";
     if (runtime.running) return "Warming models and Deepgram...";
     return "Waiting to start warmup.";
@@ -494,6 +543,11 @@ function App() {
           if (runtime.error) {
             stopWarmupPolling();
             reject(new Error(runtime.error));
+            return;
+          }
+          if (runtime.remote_warning) {
+            setSessionStatus("warming");
+            setModalStatus("warming");
             return;
           }
           if (runtime.running) {
@@ -516,6 +570,12 @@ function App() {
   function startCaptureLoop() {
     setCaptureStatus("capturing");
     lastSampleTsRef.current = 0;
+    lastChangedFrameTsRef.current = 0;
+    pendingFrameRef.current = null;
+    clientFrameIdRef.current = 0;
+    latestAppliedFrameIdRef.current = 0;
+    abortInFlightFrames();
+    updateFrameProcessingState();
     resetDiff(currentModeRef.current || "unknown");
     if (frameTimerRef.current) {
       clearInterval(frameTimerRef.current);
@@ -527,29 +587,123 @@ function App() {
           captureBusyRef.current = false;
         });
       }
-    }, 250);
+    }, 75);
+  }
+
+  function noteChangedFrame(now) {
+    if (lastChangedFrameTsRef.current > 0) {
+      setLatestFrameGapMs(now - lastChangedFrameTsRef.current);
+    }
+    lastChangedFrameTsRef.current = now;
+  }
+
+  function queueLatestFrame(payload, changedDebug, mode) {
+    const replacingQueuedFrame = Boolean(pendingFrameRef.current);
+    pendingFrameRef.current = { payload, changedDebug, mode };
+    setFramesQueued((value) => value + 1);
+    setPendingFrameCount(1);
+    if (replacingQueuedFrame) {
+      setFramesSkipped((value) => value + 1);
+    }
+    setModalStatus("queued latest frame");
+  }
+
+  function updateFrameProcessingState() {
+    const busy = inFlightFramesRef.current.size > 0;
+    processingRef.current = busy;
+    setIsProcessingFrame(busy);
+    setPendingFrameCount(pendingFrameRef.current ? 1 : 0);
+  }
+
+  function abortInFlightFrames() {
+    inFlightFramesRef.current.forEach((request) => {
+      try {
+        request.controller.abort();
+      } catch (_) {}
+    });
+    inFlightFramesRef.current.clear();
+  }
+
+  function abortOlderInFlightFrames(frameId) {
+    let aborted = 0;
+    inFlightFramesRef.current.forEach((request, requestFrameId) => {
+      if (Number(requestFrameId) < Number(frameId)) {
+        try {
+          request.controller.abort();
+        } catch (_) {}
+        inFlightFramesRef.current.delete(requestFrameId);
+        aborted += 1;
+      }
+    });
+    if (aborted) {
+      setFramesDropped((value) => value + aborted);
+      updateFrameProcessingState();
+    }
+  }
+
+  function flushQueuedFrame() {
+    if (!sharingRef.current || !sessionActiveRef.current || inFlightFramesRef.current.size >= maxInFlightFrames) {
+      return;
+    }
+    const pending = pendingFrameRef.current;
+    if (!pending) {
+      return;
+    }
+    pendingFrameRef.current = null;
+    setPendingFrameCount(0);
+    dispatchFramePayload(pending.payload, pending.changedDebug, pending.mode);
   }
 
   async function dispatchFramePayload(payload, changedDebug, mode) {
-    processingRef.current = true;
-    setIsProcessingFrame(true);
+    const frameId = Number(payload.client_frame_id || 0);
+    const isFullFrameChange = Number(payload.client_change?.changed_pixel_ratio || 0) >= fullFrameChangeRatio;
+    if (isFullFrameChange && frameId > 0) {
+      abortOlderInFlightFrames(frameId);
+    }
+    if (inFlightFramesRef.current.size >= maxInFlightFrames) {
+      queueLatestFrame(payload, changedDebug, mode);
+      return;
+    }
+    const controller = new AbortController();
+    if (frameId > 0) {
+      inFlightFramesRef.current.set(frameId, { controller, startedAt: performance.now() });
+    }
+    updateFrameProcessingState();
     setModalStatus("processing");
     try {
       const response = await fetch(configRef.current?.modalProcessFrameUrl || "/api/process-frame", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
         body: JSON.stringify(payload),
       });
       if (!response.ok) {
         throw new Error(await response.text());
       }
       const modalJson = await response.json();
+      const responseFrameId = Number(modalJson.client_frame_id || frameId || 0);
+      if (modalJson.stale || modalJson.dropped || (responseFrameId && responseFrameId < latestAppliedFrameIdRef.current)) {
+        setFramesDropped((value) => value + 1);
+        setModalStatus(pendingFrameRef.current ? "queued latest frame" : "waiting for latest frame");
+        return;
+      }
+      const analysisLagMs = Date.now() - (Number(payload.timestamp || 0) * 1000);
+      const enrichedModalJson = {
+        ...modalJson,
+        analyzed_frame_data_url: payload.frame_jpeg_base64,
+        analyzed_frame_timestamp: payload.timestamp,
+        client_analysis_lag_ms: analysisLagMs,
+      };
+      if (responseFrameId) {
+        latestAppliedFrameIdRef.current = Math.max(latestAppliedFrameIdRef.current, responseFrameId);
+      }
       setFramesSent((value) => value + 1);
       setModalStatus("connected");
       setErrorMessage("");
       setCurrentMode(modalJson.mode || mode || "unknown");
-      setLatestModalResponse(modalJson);
-      setLatestFrameEvent(modalJson.raw_record || modalJson);
+      setLatestModalResponse(enrichedModalJson);
+      setLatestAnalysisLagMs(analysisLagMs);
+      setLatestFrameEvent(enrichedModalJson.raw_record || enrichedModalJson);
       recentKeyframesRef.current = [...recentKeyframesRef.current.slice(-29), {
         timestamp: modalJson.timestamp,
         mode: modalJson.mode,
@@ -577,19 +731,18 @@ function App() {
         })();
       }
     } catch (err) {
+      if (err?.name === "AbortError") {
+        setModalStatus(pendingFrameRef.current ? "queued latest frame" : "superseded old frame");
+        return;
+      }
       setModalStatus("error");
       setErrorMessage(`Frame processing failed: ${err.message}`);
     } finally {
-      processingRef.current = false;
-      setIsProcessingFrame(false);
-      if (pendingCaptureRef.current && sharingRef.current && sessionActiveRef.current) {
-        pendingCaptureRef.current = false;
-        lastSampleTsRef.current = 0;
-        captureLoop().catch((err) => {
-          setModalStatus("error");
-          setErrorMessage(`Frame processing failed: ${err.message}`);
-        });
+      if (frameId > 0) {
+        inFlightFramesRef.current.delete(frameId);
       }
+      updateFrameProcessingState();
+      flushQueuedFrame();
     }
   }
 
@@ -602,6 +755,7 @@ function App() {
     setCaptureStatus("requesting permission");
     setModalStatus("warming");
     setMicStatus("requesting");
+    transcriptDisabledRef.current = false;
     setWarmupDetails("Waiting for screen-share permission...");
     setErrorMessage("");
     try {
@@ -647,7 +801,7 @@ function App() {
       }
       const warmPayload = await warmResponse.json();
       setWarmupDetails(renderWarmupDetails(warmPayload));
-      if (warmPayload?.error) throw new Error(warmPayload.error);
+      if (warmPayload?.error && !warmPayload?.remote_warning) throw new Error(warmPayload.error);
       await pollWarmupUntilReady();
 
       await attachScreenStream(stream);
@@ -707,6 +861,7 @@ function App() {
       clearInterval(frameTimerRef.current);
       frameTimerRef.current = null;
     }
+    abortInFlightFrames();
     if (pendingStreamRef.current) {
       pendingStreamRef.current.getTracks().forEach((track) => track.stop());
       pendingStreamRef.current = null;
@@ -718,6 +873,16 @@ function App() {
     if (transcriptRestartTimeoutRef.current) {
       clearTimeout(transcriptRestartTimeoutRef.current);
       transcriptRestartTimeoutRef.current = null;
+    }
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== "inactive") {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (_) {}
+      mediaRecorderRef.current.ondataavailable = null;
+      mediaRecorderRef.current.onerror = null;
+      mediaRecorderRef.current = null;
     }
     if (scriptProcessorRef.current) {
       try {
@@ -742,7 +907,6 @@ function App() {
     if (finalTranscriptBlob && finalTranscriptBlob.size > 44) {
       void flushTranscriptBlob(finalTranscriptBlob);
     }
-    mediaRecorderRef.current = null;
     recorderChunksRef.current = [];
     if (micStreamRef.current) {
       micStreamRef.current.getTracks().forEach((track) => track.stop());
@@ -763,6 +927,12 @@ function App() {
     setWarmupDetails("Not started.");
     setIsProcessingFrame(false);
     captureBusyRef.current = false;
+    processingRef.current = false;
+    pendingFrameRef.current = null;
+    inFlightFramesRef.current.clear();
+    setPendingFrameCount(0);
+    lastChangedFrameTsRef.current = 0;
+    transcriptDisabledRef.current = false;
     if (sessionId) {
       try {
         await fetch(`/api/sessions/${sessionId}/stop`, {
@@ -873,11 +1043,13 @@ function App() {
       lastModeRef.current = mode;
     }
 
-    const fullCanvas = canvasRef.current;
-    const fullCtx = fullCanvas.getContext("2d", { willReadFrequently: true });
-    fullCanvas.width = video.videoWidth;
-    fullCanvas.height = video.videoHeight;
-    fullCtx.drawImage(video, 0, 0, fullCanvas.width, fullCanvas.height);
+    const videoWidth = video.videoWidth || 1;
+    const videoHeight = video.videoHeight || 1;
+    const maxProcessingSide = Math.max(320, Number(configRef.current?.captureMaxSide || 512));
+    const longestSide = Math.max(videoWidth, videoHeight);
+    const scale = longestSide > maxProcessingSide ? (maxProcessingSide / longestSide) : 1.0;
+    const targetWidth = Math.max(1, Math.round(videoWidth * scale));
+    const targetHeight = Math.max(1, Math.round(videoHeight * scale));
 
     const lowCanvas = lowResCanvasRef.current;
     const lowCtx = lowCanvas.getContext("2d", { willReadFrequently: true });
@@ -893,7 +1065,7 @@ function App() {
       changedPixelRatio: diff.changedPixelRatio,
       changedBboxes: diff.changedBboxes,
       mergedChangedBbox: diff.mergedChangedBbox
-        ? scaleBbox(diff.mergedChangedBbox, lowCanvas.width, lowCanvas.height, fullCanvas.width, fullCanvas.height)
+        ? scaleBbox(diff.mergedChangedBbox, lowCanvas.width, lowCanvas.height, targetWidth, targetHeight)
         : null,
     };
     setLatestChangeDebug(changedDebug);
@@ -903,17 +1075,22 @@ function App() {
       return;
     }
 
-    if (processingRef.current) {
-      pendingCaptureRef.current = true;
-      setFramesSkipped((value) => value + 1);
-      setModalStatus("waiting for latest frame");
-      return;
-    }
+    const fullCanvas = canvasRef.current;
+    const fullCtx = fullCanvas.getContext("2d", { willReadFrequently: true });
+    fullCanvas.width = targetWidth;
+    fullCanvas.height = targetHeight;
+    fullCtx.drawImage(video, 0, 0, fullCanvas.width, fullCanvas.height);
 
-    const frameDataUrl = await canvasToJpegDataUrl(fullCanvas, 0.68);
+    const jpegQuality = Math.max(0.25, Math.min(0.85, Number(configRef.current?.frameJpegQuality || 0.50)));
+    const frameDataUrl = await canvasToJpegDataUrl(fullCanvas, jpegQuality);
+    noteChangedFrame(now);
+    const clientFrameId = clientFrameIdRef.current + 1;
+    clientFrameIdRef.current = clientFrameId;
     const payload = {
       session_id: sessionIdRef.current,
       timestamp: Date.now() / 1000,
+      client_frame_id: clientFrameId,
+      client_sent_at: Date.now() / 1000,
       client_mode_hint: mode,
       frame_jpeg_base64: frameDataUrl,
       client_change: {
@@ -926,15 +1103,38 @@ function App() {
       },
       recent_transcript: recentTranscriptRef.current,
     };
+    changedDebug.clientFrameId = clientFrameId;
+    changedDebug.fullFrameChange = diff.changedPixelRatio >= fullFrameChangeRatio;
 
-    await dispatchFramePayload(payload, changedDebug, mode);
+    if (changedDebug.fullFrameChange) {
+      abortOlderInFlightFrames(clientFrameId);
+    }
+
+    if (inFlightFramesRef.current.size >= maxInFlightFrames) {
+      queueLatestFrame(payload, changedDebug, mode);
+      return;
+    }
+
+    dispatchFramePayload(payload, changedDebug, mode);
   }
 
-  const latestJson = latestModalResponse ? JSON.stringify(latestModalResponse, null, 2) : "";
+  const latestJson = useMemo(
+    () => (
+      showRawJson && latestModalResponse
+        ? JSON.stringify(
+            latestModalResponse,
+            (key, value) => (key.endsWith("_data_url") ? "[image data url omitted]" : value),
+            2
+          )
+        : ""
+    ),
+    [latestModalResponse, showRawJson]
+  );
   const latestMacroTypes = macroTypes(latestModalResponse?.visual_payload);
   const latestMicroCount = microElementCount(latestModalResponse?.visual_payload);
   const latestCursor = cursorDisplay(latestModalResponse);
   const latestSummary = summaryStatus(latestModalResponse);
+  const latestTimings = latestModalResponse?.debug?.stage_timings_ms || {};
 
   return (
     <div className="page">
@@ -979,7 +1179,13 @@ function App() {
             {[
               ["Current mode", currentMode],
               ["Frames sent", framesSent],
+              ["Queued updates", framesQueued],
+              ["Pending queue", pendingFrameCount],
+              ["Dropped stale", framesDropped],
+              ["In flight", inFlightFramesRef.current.size],
               ["Frames skipped", framesSkipped],
+              ["Latest frame gap", latestFrameGapMs == null ? "--" : `${latestFrameGapMs.toFixed(1)} ms`],
+              ["Analysis lag", latestAnalysisLagMs == null ? "--" : `${latestAnalysisLagMs.toFixed(1)} ms`],
               ["Processing", isProcessingFrame ? "yes" : "no"],
               ["Warmup", warmupDetails],
               ["Changed", latestChangeDebug?.changed ? "true" : "false"],
@@ -1053,8 +1259,8 @@ function App() {
               <div className="empty-state">No transcript chunks yet.</div>
             )}
             <div className="transcript-list" style={{ marginTop: 10 }}>
-              {transcriptHistory.slice().reverse().slice(0, 6).map((item, index) => (
-                <div className="transcript-item" key={`${transcriptIdentity(item)}-${index}`}>
+              {transcriptHistory.slice().reverse().slice(0, 6).map((item) => (
+                <div className="transcript-item" key={transcriptIdentity(item)}>
                   <div className="timestamp">{formatTs(item.start_time)} - {formatTs(item.end_time)} {item.speaker ? `| ${item.speaker}` : ""}</div>
                   <div>{item.text}</div>
                 </div>
@@ -1108,19 +1314,42 @@ function App() {
           <div className="mini-panel">
             <h3>Annotated Detection View</h3>
             {latestModalResponse?.annotated_image_data_url ? (
-              <img
-                src={latestModalResponse.annotated_image_data_url}
-                alt="Annotated macro, micro, and cursor detections"
-                style={{ width: "100%", borderRadius: 14, border: "1px solid rgba(148, 163, 184, 0.14)" }}
-              />
+              <div className="annotation-compare">
+                <div>
+                  <div className="timestamp">Analyzed input frame</div>
+                  <img
+                    src={latestModalResponse.analyzed_frame_data_url}
+                    alt="The captured frame sent for analysis"
+                  />
+                </div>
+                <div>
+                  <div className="timestamp">
+                    Annotated output
+                    {latestModalResponse.client_analysis_lag_ms != null ? ` | lag ${formatMs(latestModalResponse.client_analysis_lag_ms)}` : ""}
+                  </div>
+                  <img
+                    src={latestModalResponse.annotated_image_data_url}
+                    alt="Annotated macro, micro, and cursor detections"
+                  />
+                </div>
+              </div>
             ) : (
               <div className="empty-state">Annotated image will appear after the first processed frame.</div>
             )}
           </div>
 
           <div className="mini-panel">
-            <h3>Complete JSON Output</h3>
-            <div className="json-box mono">{latestJson || "No response yet."}</div>
+            <div className="section-header">
+              <h3>Complete JSON Output</h3>
+              <button className="button secondary" onClick={() => setShowRawJson((value) => !value)}>
+                {showRawJson ? "Hide" : "Show"}
+              </button>
+            </div>
+            {showRawJson ? (
+              <div className="json-box mono">{latestJson || "No response yet."}</div>
+            ) : (
+              <div className="empty-state">Hidden while live updates are running.</div>
+            )}
           </div>
 
           <div className="mini-panel">
@@ -1132,6 +1361,10 @@ function App() {
               <div className="list-item"><strong>Surya ran:</strong> {String(latestModalResponse?.debug?.surya_ran || false)}</div>
               <div className="list-item"><strong>OCR ran:</strong> {String(latestModalResponse?.debug?.ocr_ran || false)}</div>
               <div className="list-item"><strong>Processing time:</strong> {latestModalResponse?.debug?.processing_time_ms?.toFixed?.(1) ?? "--"} ms</div>
+              <div className="list-item"><strong>Endpoint total:</strong> <span className="mono">{formatMs(latestTimings.endpoint_total_ms)}</span></div>
+              <div className="list-item"><strong>Proxy:</strong> <span className="mono">{formatMs(latestTimings.modal_proxy_ms)}</span></div>
+              <div className="list-item"><strong>Macro / Omni:</strong> <span className="mono">{formatMs(latestTimings.macro_layout_ms)} / {formatMs(latestTimings.omniparser_ms)}</span></div>
+              <div className="list-item"><strong>Summary / Annotation:</strong> <span className="mono">{formatMs(latestTimings.summary_ms)} / {formatMs(latestTimings.annotation_ms)}</span></div>
             </div>
           </div>
 

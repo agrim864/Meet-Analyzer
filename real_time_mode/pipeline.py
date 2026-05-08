@@ -204,13 +204,16 @@ class DemoAnalyzerPipeline:
 
     def ingest_frame(self, frame_bgr: Any, *, timestamp_sec: float) -> SceneStateRecord:
         started = perf_counter()
+        stage_timings: Dict[str, float] = {}
         self._frame_id += 1
         frame_h, frame_w = frame_bgr.shape[:2]
         viewport = {"x": 0, "y": 0, "width": int(frame_w), "height": int(frame_h)}
         self._sync_transcript_buffer()
 
         previous_mode = self.cache.last_stable_mode
+        route_started = perf_counter()
         route, mode_changed = self._route_mode(frame_bgr)
+        stage_timings["route_ms"] = (perf_counter() - route_started) * 1000.0
         mode = route.mode
         self.cache.previous_mode = previous_mode
         self.cache.current_mode = mode
@@ -220,8 +223,11 @@ class DemoAnalyzerPipeline:
         cursor = CursorState()
         masked_frame: Optional[np.ndarray] = None
         if mode in {"code", "slide", "demo"}:
+            cursor_started = perf_counter()
             prev_cursor = self.cache.cursor_state
             prev_masked = self._get_mode_cache(mode).prev_frame_masked
+            if self._frame_shape_changed(prev_masked, frame_bgr):
+                prev_masked = None
             cursor = self.cursor_analyzer.analyze(
                 frame_bgr=frame_bgr,
                 prev_frame_bgr=prev_masked,
@@ -229,8 +235,12 @@ class DemoAnalyzerPipeline:
                 elements=self._candidate_elements_for_cursor(mode),
             )
             masked_frame = self._mask_cursor_for_change_detection(frame_bgr, cursor, prev_cursor)
+            stage_timings["cursor_ms"] = (perf_counter() - cursor_started) * 1000.0
+        else:
+            stage_timings["cursor_ms"] = 0.0
         self.cache.cursor_state = cursor.copy()
 
+        mode_started = perf_counter()
         if mode == "code":
             state = self._process_code_mode(frame_bgr, masked_frame, timestamp_sec, viewport, route, mode_changed)
         elif mode == "slide":
@@ -239,7 +249,9 @@ class DemoAnalyzerPipeline:
             state = self._process_demo_mode(frame_bgr, masked_frame, timestamp_sec, viewport, route, mode_changed)
         else:
             state = self._process_other_mode(timestamp_sec, viewport, route, mode_changed)
+        stage_timings["mode_processor_ms"] = (perf_counter() - mode_started) * 1000.0
 
+        summary_started = perf_counter()
         transcript_window = self._select_transcript_window(
             timestamp_sec=timestamp_sec,
             force=state.visual_change or mode_changed or state.mode == "other",
@@ -250,8 +262,11 @@ class DemoAnalyzerPipeline:
             state.utterance_time_span = (transcript_window[0].start_time, transcript_window[-1].end_time)
         state.summary = self._summarize_state(state, transcript_window, previous_mode=previous_mode, mode_changed=mode_changed)
         self._remember_summary(state, transcript_window)
+        stage_timings["summary_ms"] = (perf_counter() - summary_started) * 1000.0
 
         elapsed_ms = (perf_counter() - started) * 1000.0
+        stage_timings.update(dict(state.debug.get("stage_timings_ms") or {}))
+        stage_timings["pipeline_total_ms"] = elapsed_ms
         state.debug = dict(state.debug)
         state.debug.update(
             {
@@ -262,6 +277,7 @@ class DemoAnalyzerPipeline:
                 "rfdetr_ran": bool(state.debug.get("rfdetr_ran", False)),
                 "omniparser_ran": bool(state.debug.get("omniparser_ran", False)),
                 "processing_time_ms": elapsed_ms,
+                "stage_timings_ms": stage_timings,
             }
         )
         state.confidence = dict(state.confidence)
@@ -289,6 +305,14 @@ class DemoAnalyzerPipeline:
         mode_changed: bool,
     ) -> ScreenState:
         cache = self.cache.code
+        resolution_changed = self._frame_shape_changed(cache.prev_frame_masked, masked_frame)
+        if resolution_changed:
+            cache.prev_frame_masked = None
+            cache.prev_ocr_text = ""
+            cache.prev_ocr_lines = []
+            cache.last_visual_output = {}
+            cache.last_state = None
+            cache.last_processed_time = None
         change = ChangeDetectionResult(changed=True, change_ratio=1.0, ssim_score=0.0, changed_regions=[(0, 0, viewport["width"], viewport["height"])], change_type="initial")
         first_frame = mode_changed or cache.prev_frame_masked is None or cache.last_state is None
         interval_skip = (not first_frame) and cache.last_processed_time is not None and (timestamp_sec - cache.last_processed_time) < self.code_interval_sec
@@ -302,7 +326,9 @@ class DemoAnalyzerPipeline:
                 ssim_keep_threshold=self.code_change_ssim_threshold,
             )
         if first_frame or change.changed:
+            ocr_started = perf_counter()
             ocr = self._safe_extract_ocr(frame_bgr, "code")
+            ocr_ms = (perf_counter() - ocr_started) * 1000.0
             ocr_diff = _diff_text(cache.prev_ocr_text, ocr.text)
             text_changed = bool(ocr_diff["added"] or ocr_diff["removed"])
             visual_change = first_frame or change.changed or text_changed
@@ -343,6 +369,7 @@ class DemoAnalyzerPipeline:
                     "rfdetr_ran": False,
                     "omniparser_ran": False,
                     "crop_bbox": list(changed_bbox),
+                    "stage_timings_ms": {"ocr_ms": ocr_ms},
                 },
             )
             if visual_change or first_frame:
@@ -366,6 +393,15 @@ class DemoAnalyzerPipeline:
         mode_changed: bool,
     ) -> ScreenState:
         cache = self.cache.slide
+        resolution_changed = self._frame_shape_changed(cache.prev_frame_masked, masked_frame)
+        if resolution_changed:
+            cache.prev_frame_masked = None
+            cache.prev_slide_fingerprint = ""
+            cache.prev_surya_layout = []
+            cache.prev_surya_text = ""
+            cache.last_visual_output = {}
+            cache.last_state = None
+            cache.last_processed_time = None
         change = ChangeDetectionResult(changed=True, change_ratio=1.0, ssim_score=0.0, changed_regions=[(0, 0, viewport["width"], viewport["height"])], change_type="initial")
         first_frame = mode_changed or cache.prev_frame_masked is None or cache.last_state is None
         interval_skip = (not first_frame) and cache.last_processed_time is not None and (timestamp_sec - cache.last_processed_time) < self.slide_interval_sec
@@ -379,7 +415,9 @@ class DemoAnalyzerPipeline:
                 ssim_keep_threshold=self.slide_change_ssim_threshold,
             )
         if first_frame or change.changed:
+            slide_started = perf_counter()
             slide = self._safe_analyze_slide(frame_bgr)
+            slide_ms = (perf_counter() - slide_started) * 1000.0
             duplicate_slide = (not first_frame) and cache.prev_slide_fingerprint and cache.prev_slide_fingerprint == slide.fingerprint
             visual_change = first_frame or (change.changed and not duplicate_slide)
             payload = {
@@ -418,6 +456,7 @@ class DemoAnalyzerPipeline:
                     "rfdetr_ran": False,
                     "omniparser_ran": False,
                     "duplicate_slide": duplicate_slide,
+                    "stage_timings_ms": {"slide_analysis_ms": slide_ms},
                 },
             )
             if visual_change or first_frame:
@@ -443,11 +482,21 @@ class DemoAnalyzerPipeline:
     ) -> ScreenState:
         cache = self.cache.demo
         frame_h, frame_w = frame_bgr.shape[:2]
+        resolution_changed = self._frame_shape_changed(cache.prev_frame_masked, masked_frame)
+        if resolution_changed:
+            cache.prev_frame_masked = None
+            cache.prev_macro_layout = []
+            cache.prev_micro_elements = []
+            cache.prev_page_summary = ""
+            cache.last_visual_output = {}
+            cache.last_state = None
+            cache.last_processed_time = None
         first_frame = mode_changed or cache.prev_frame_masked is None or cache.last_state is None
         interval_skip = (not first_frame) and cache.last_processed_time is not None and (timestamp_sec - cache.last_processed_time) < self.demo_interval_sec
         change = ChangeDetectionResult(changed=True, change_ratio=1.0, ssim_score=0.0, changed_regions=[(0, 0, frame_w, frame_h)], change_type="initial")
         reran_macro = False
         omniparser_ran = False
+        stage_timings: Dict[str, float] = {}
         if interval_skip:
             return self._reuse_cached_state(cache.last_state, timestamp_sec, route, self.cache.cursor_state, self._infer_theme(masked_frame), "demo", "interval_skip", change)
         if not first_frame and not interval_skip:
@@ -477,8 +526,12 @@ class DemoAnalyzerPipeline:
 
             macro_layout = [group.copy() for group in cache.prev_macro_layout]
             if first_frame or self._should_rerun_macro(change.changed_regions, viewport, macro_layout):
+                macro_started = perf_counter()
                 macro_layout = self._detect_macro_layout(frame_bgr, timestamp_sec)
+                stage_timings["macro_layout_ms"] = (perf_counter() - macro_started) * 1000.0
                 reran_macro = True
+            else:
+                stage_timings["macro_layout_ms"] = 0.0
             macro_layout = self._augment_macro_layout_from_micro(macro_layout, cache.prev_micro_elements, viewport)
             state.layout_groups = [group.copy() for group in macro_layout]
 
@@ -487,7 +540,9 @@ class DemoAnalyzerPipeline:
             requires_full_parse = first_frame or any(bool(item.get("requires_full_parse")) for item in crop_plan)
             if requires_full_parse:
                 reparsed_regions = [(0, 0, frame_w, frame_h)]
+            parse_started = perf_counter()
             parsed = self._parse_micro_regions(frame_bgr, reparsed_regions)
+            stage_timings["omniparser_ms"] = (perf_counter() - parse_started) * 1000.0
             omniparser_ran = True
 
             for element in parsed.elements:
@@ -537,6 +592,7 @@ class DemoAnalyzerPipeline:
                 "omniparser_ran": omniparser_ran,
                 "crop_bbox": [list(item) for item in reparsed_regions],
                 "change_type": change.change_type,
+                "stage_timings_ms": stage_timings,
             }
             merged_state.delta = StateDelta(
                 types=["initial_frame"] if first_frame else ["macro_refresh" if reran_macro else "micro_refresh"],
@@ -701,6 +757,12 @@ class DemoAnalyzerPipeline:
             change_type=change_type,
         )
 
+    @staticmethod
+    def _frame_shape_changed(prev_frame: Optional[np.ndarray], current_frame: np.ndarray) -> bool:
+        if prev_frame is None:
+            return False
+        return tuple(prev_frame.shape[:2]) != tuple(current_frame.shape[:2])
+
     def _mask_cursor_for_change_detection(
         self,
         frame_bgr: np.ndarray,
@@ -780,7 +842,7 @@ class DemoAnalyzerPipeline:
             crop_bbox = list(expanded)
             if parent is not None:
                 parent_type = str(parent.label or "")
-                if parent_type in {"header", "left_sidebar", "right_sidebar", "footer"}:
+                if parent_type in {"header", "left_sidebar", "footer"}:
                     crop_bbox = list(parent.bbox)
                     reason = f"{parent_type}_region_change"
                 elif parent_type == "content":
@@ -835,13 +897,37 @@ class DemoAnalyzerPipeline:
             return groups
         labels = {group.label for group in groups}
         inferred_left = self._infer_sidebar_group(elements, viewport, side="left")
-        inferred_right = self._infer_sidebar_group(elements, viewport, side="right")
         if inferred_left is not None and "left_sidebar" not in labels:
             groups.append(inferred_left)
-        if inferred_right is not None and "right_sidebar" not in labels:
-            groups.append(inferred_right)
+            groups = self._clip_main_content_for_sidebar(groups, inferred_left, viewport)
         groups.sort(key=lambda item: (item.bbox[1], item.bbox[0], item.id))
         return groups
+
+    def _clip_main_content_for_sidebar(
+        self,
+        groups: Sequence[LayoutGroup],
+        sidebar: LayoutGroup,
+        viewport: Dict[str, int],
+    ) -> List[LayoutGroup]:
+        adjusted: List[LayoutGroup] = []
+        sx1, sy1, sx2, sy2 = sidebar.bbox
+        frame_w = int(viewport["width"])
+        for group in groups:
+            item = group.copy()
+            if item.id == sidebar.id or item.label not in {"main_content", "content"}:
+                adjusted.append(item)
+                continue
+            x1, y1, x2, y2 = item.bbox
+            overlap_h = max(0, min(y2, sy2) - max(y1, sy1))
+            if x1 < sx2 < x2 and overlap_h >= max(1, min(y2 - y1, sy2 - sy1) * 0.45):
+                clipped = (sx2, y1, x2, y2)
+                if clipped[2] - clipped[0] >= max(40, int(frame_w * 0.25)):
+                    item.bbox = clipped
+                    item.score = max(float(item.score or 0.0), float(sidebar.score or 0.0))
+                    if item.source == "fallback":
+                        item.source = "micro_inferred_coverage"
+            adjusted.append(item)
+        return adjusted
 
     def _infer_sidebar_group(
         self,
@@ -852,12 +938,18 @@ class DemoAnalyzerPipeline:
     ) -> Optional[LayoutGroup]:
         frame_w = int(viewport["width"])
         frame_h = int(viewport["height"])
-        if side == "left":
-            candidates = [item for item in elements if item.bbox[0] <= frame_w * 0.28]
-            label = "left_sidebar"
-        else:
-            candidates = [item for item in elements if item.bbox[2] >= frame_w * 0.72]
-            label = "right_sidebar"
+        if side != "left":
+            return None
+        candidates = [
+            item
+            for item in elements
+            if item.visible
+            and not item.occluded
+            and item.bbox[0] <= frame_w * 0.12
+            and item.bbox[2] <= frame_w * 0.36
+            and (item.bbox[2] - item.bbox[0]) <= max(80, int(frame_w * 0.30))
+        ]
+        label = "left_sidebar"
         if len(candidates) < 6:
             return None
         union = union_boxes([item.bbox for item in candidates])
@@ -866,14 +958,28 @@ class DemoAnalyzerPipeline:
         x1, y1, x2, y2 = union
         width = max(1, x2 - x1)
         height = max(1, y2 - y1)
-        if height < frame_h * 0.22 or width < frame_w * 0.10:
+        if x1 > frame_w * 0.08:
             return None
+        if x2 > frame_w * 0.38 or width > frame_w * 0.34:
+            return None
+        if height < frame_h * 0.26 or width < frame_w * 0.08:
+            return None
+        centers_x = sorted((item.bbox[0] + item.bbox[2]) / 2.0 for item in candidates)
+        centers_y = sorted((item.bbox[1] + item.bbox[3]) / 2.0 for item in candidates)
+        p10 = centers_x[max(0, int(len(centers_x) * 0.10) - 1)]
+        p90 = centers_x[min(len(centers_x) - 1, int(len(centers_x) * 0.90))]
+        if (p90 - p10) > max(72, frame_w * 0.18):
+            return None
+        vertical_bands = {int(cy / max(1, frame_h * 0.12)) for cy in centers_y}
+        if len(vertical_bands) < 3:
+            return None
+        score = min(0.72, 0.46 + min(0.12, len(candidates) * 0.01) + min(0.14, (height / max(1, frame_h)) * 0.20))
         return LayoutGroup(
             id=f"group_{label}_synthetic",
             label=label,
             bbox=(x1, y1, x2, y2),
             axis="xy",
-            score=0.55,
+            score=score,
             source="micro_inferred",
             frame_id=self._frame_id,
             timestamp=0.0,

@@ -112,7 +112,7 @@ class ClusterBatchRunner:
                     continue
                 exports.append(f"export {key}={self._shell(value)}")
             exports.append(
-                f"/home/gshroff/anaconda3/bin/conda run --no-capture-output -n {self._shell(self.settings.cluster_conda_env)} python {self._shell(self.settings.cluster_project_dir + '/batch_mode/myproject/test.py')} --request-json {self._shell(remote_request_json)} --output-json {self._shell(remote_result_json)}"
+                f"\"${{CONDA_BIN:-${{HOME}}/anaconda3/bin/conda}}\" run --no-capture-output -n {self._shell(self.settings.cluster_conda_env)} python {self._shell(self.settings.cluster_project_dir + '/batch_mode/myproject/test.py')} --request-json {self._shell(remote_request_json)} --output-json {self._shell(remote_result_json)}"
             )
             wrap_command = " && ".join(exports)
             dependency_part = f"--dependency={self._shell('afterany:' + dependency_after_job_id)} " if dependency_after_job_id else ""
@@ -549,7 +549,7 @@ class ClusterBatchRunner:
             f"cd {self._shell(self.settings.cluster_project_dir)}",
             f"export PYTHONPATH={self._shell(self.settings.cluster_project_dir)}:${{PYTHONPATH:-}}",
             f"export DEEPGRAM_API_KEY={self._shell(self.settings.deepgram_api_key)}",
-            f"/home/gshroff/anaconda3/bin/conda run --no-capture-output -n {self._shell(self.settings.cluster_conda_env)} "
+            f"\"${{CONDA_BIN:-${{HOME}}/anaconda3/bin/conda}}\" run --no-capture-output -n {self._shell(self.settings.cluster_conda_env)} "
             f"python {self._shell(self.settings.cluster_project_dir + '/batch_mode/myproject/prepare_cluster_request.py')} "
             f"--source {self._shell(source)} "
             f"--request-json {self._shell(request_json)} "

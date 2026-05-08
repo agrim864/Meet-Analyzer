@@ -4,6 +4,7 @@
 batch_mode/.env
 real_time_mode/.env
 !.env.example
+!**/.env.example
 *.pem
 *.key
 *.crt
@@ -26,6 +27,7 @@ env/
 *.log
 *.tmp
 *.bak
+git_trace.txt
 modal_deploy_err.txt
 modal_deploy_out.txt
 temp_modal_check.py
@@ -59,12 +61,6 @@ out_full/
 # Large model files that exceed GitHub's normal file limits.
 # The README explains how to download these after cloning.
 **/icon_caption/model.safetensors
-real_time_mode/vendor/OmniParser/weights/icon_detect/model.pt
-real_time_mode/vendor/OmniParser/weights/icon_detect/model.yaml
-real_time_mode/vendor/OmniParser/weights/icon_detect/train_args.yaml
-real_time_mode/vendor/OmniParser/weights/icon_caption/config.json
-real_time_mode/vendor/OmniParser/weights/icon_caption/generation_config.json
-real_time_mode/cursor_class_best.pt
 batch_mode/weights/
 
 # Legacy/unused detector weights

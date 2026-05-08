@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence
 
@@ -197,7 +198,8 @@ class GeminiFrameSummarizer(BaseFrameSummarizer):
         model_name: str = "gemini-2.5-flash",
         max_output_tokens: int = 96,
         temperature: float = 0.1,
-        timeout_sec: float = 30.0,
+        timeout_sec: float = 4.0,
+        max_retries: int = 0,
     ) -> None:
         self.api_key = str(api_key or "").strip()
         self.model_name = str(model_name or "gemini-2.5-flash").strip()
@@ -205,6 +207,7 @@ class GeminiFrameSummarizer(BaseFrameSummarizer):
         self.max_output_tokens = int(max_output_tokens)
         self.temperature = float(temperature)
         self.timeout_sec = float(timeout_sec)
+        self.max_retries = max(0, int(max_retries))
         self._warmed = False
 
     def warmup(self) -> None:
@@ -245,7 +248,7 @@ class GeminiFrameSummarizer(BaseFrameSummarizer):
             f"{self.model_name}:generateContent?key={self.api_key}"
         )
         last_error: Optional[Exception] = None
-        for attempt in range(3):
+        for attempt in range(self.max_retries + 1):
             response = requests.post(endpoint, json=payload, timeout=self.timeout_sec)
             if response.status_code != 429:
                 response.raise_for_status()
@@ -255,9 +258,7 @@ class GeminiFrameSummarizer(BaseFrameSummarizer):
                 f"429 Client Error: Too Many Requests for url: {endpoint}",
                 response=response,
             )
-            if attempt < 2:
-                import time
-
+            if attempt < self.max_retries:
                 time.sleep(1.5 * (attempt + 1))
         else:
             assert last_error is not None
@@ -329,10 +330,18 @@ class GeminiFrameSummarizer(BaseFrameSummarizer):
 
 
 class ResilientFrameSummarizer(BaseFrameSummarizer):
-    def __init__(self, primary: BaseFrameSummarizer, fallback: Optional[BaseFrameSummarizer] = None) -> None:
+    def __init__(
+        self,
+        primary: BaseFrameSummarizer,
+        fallback: Optional[BaseFrameSummarizer] = None,
+        *,
+        failure_cooldown_sec: float = 60.0,
+    ) -> None:
         self.primary = primary
         self.fallback = fallback or HeuristicFrameSummarizer()
         self.last_error: str = ""
+        self.failure_cooldown_sec = float(failure_cooldown_sec)
+        self._disabled_until = 0.0
 
     def warmup(self) -> None:
         try:
@@ -343,20 +352,26 @@ class ResilientFrameSummarizer(BaseFrameSummarizer):
             logger.warning("Frame summarizer warmup failed: %s", exc)
 
     def summarize(self, request: FrameSummaryRequest) -> str:
+        if self._disabled_until and time.monotonic() < self._disabled_until:
+            return self.fallback.summarize(request)
         try:
             text = self.primary.summarize(request)
             if text:
                 self.last_error = ""
+                self._disabled_until = 0.0
                 return text
             if getattr(self.primary, "provider_name", "") == "gemini":
                 self.last_error = "Gemini returned an empty response."
-                return "Gemini not available."
+                self._disabled_until = time.monotonic() + self.failure_cooldown_sec
+                return self.fallback.summarize(request)
         except Exception as exc:
             self.last_error = f"{type(exc).__name__}: {exc}"
             logger.warning("Frame summarizer generation failed: %s", exc)
             if getattr(self.primary, "provider_name", "") == "gemini":
-                return "Gemini not available."
+                self._disabled_until = time.monotonic() + self.failure_cooldown_sec
+                return self.fallback.summarize(request)
         self.last_error = "Primary summarizer returned no text."
+        self._disabled_until = time.monotonic() + self.failure_cooldown_sec
         return self.fallback.summarize(request)
 
 

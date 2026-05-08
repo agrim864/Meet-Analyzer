@@ -1,0 +1,231 @@
+[
+  {
+    "time_sec": 2.0,
+    "raw": "docs\\assets\\frame_0002_raw.jpg",
+    "overlay": "docs\\assets\\frame_0002_segments.jpg",
+    "groups": [
+      {
+        "label": "header",
+        "bbox": [
+          0,
+          0,
+          854,
+          133
+        ],
+        "score": 0.8822900366783142,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "left_sidebar",
+        "bbox": [
+          0,
+          133,
+          122,
+          534
+        ],
+        "score": 0.8041663019040997,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "main_content",
+        "bbox": [
+          122,
+          133,
+          854,
+          534
+        ],
+        "score": 0.8822900366783142,
+        "source": "uitag-yolo-coverage"
+      }
+    ]
+  },
+  {
+    "time_sec": 15.0,
+    "raw": "docs\\assets\\frame_0015_raw.jpg",
+    "overlay": "docs\\assets\\frame_0015_segments.jpg",
+    "groups": [
+      {
+        "label": "header",
+        "bbox": [
+          0,
+          0,
+          854,
+          133
+        ],
+        "score": 0.8588123631477356,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "left_sidebar",
+        "bbox": [
+          0,
+          133,
+          121,
+          534
+        ],
+        "score": 0.8761920249060299,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "main_content",
+        "bbox": [
+          121,
+          133,
+          854,
+          534
+        ],
+        "score": 0.8761920249060299,
+        "source": "uitag-yolo-coverage"
+      }
+    ]
+  },
+  {
+    "time_sec": 58.0,
+    "raw": "docs\\assets\\frame_0058_raw.jpg",
+    "overlay": "docs\\assets\\frame_0058_segments.jpg",
+    "groups": [
+      {
+        "label": "header",
+        "bbox": [
+          0,
+          0,
+          854,
+          133
+        ],
+        "score": 0.7448939990997314,
+        "source": "uitag-yolo-lowconf"
+      },
+      {
+        "label": "main_content",
+        "bbox": [
+          0,
+          133,
+          854,
+          534
+        ],
+        "score": 0.7448939990997314,
+        "source": "uitag-yolo-coverage"
+      }
+    ]
+  },
+  {
+    "time_sec": 100.0,
+    "raw": "docs\\assets\\frame_0100_raw.jpg",
+    "overlay": "docs\\assets\\frame_0100_segments.jpg",
+    "groups": [
+      {
+        "label": "header",
+        "bbox": [
+          0,
+          0,
+          854,
+          133
+        ],
+        "score": 0.9061578822135925,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "left_sidebar",
+        "bbox": [
+          0,
+          133,
+          120,
+          534
+        ],
+        "score": 0.9020498024479726,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "main_content",
+        "bbox": [
+          120,
+          133,
+          854,
+          534
+        ],
+        "score": 0.9061578822135925,
+        "source": "uitag-yolo-coverage"
+      }
+    ]
+  },
+  {
+    "time_sec": 145.0,
+    "raw": "docs\\assets\\frame_0145_raw.jpg",
+    "overlay": "docs\\assets\\frame_0145_segments.jpg",
+    "groups": [
+      {
+        "label": "header",
+        "bbox": [
+          0,
+          0,
+          854,
+          133
+        ],
+        "score": 0.8283653569221496,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "left_sidebar",
+        "bbox": [
+          0,
+          133,
+          120,
+          534
+        ],
+        "score": 0.707130435397116,
+        "source": "uitag-yolo-lowconf"
+      },
+      {
+        "label": "main_content",
+        "bbox": [
+          120,
+          133,
+          854,
+          534
+        ],
+        "score": 0.8283653569221496,
+        "source": "uitag-yolo-coverage"
+      }
+    ]
+  },
+  {
+    "time_sec": 205.0,
+    "raw": "docs\\assets\\frame_0205_raw.jpg",
+    "overlay": "docs\\assets\\frame_0205_segments.jpg",
+    "groups": [
+      {
+        "label": "header",
+        "bbox": [
+          0,
+          0,
+          854,
+          133
+        ],
+        "score": 0.7965384435653686,
+        "source": "uitag-yolo"
+      },
+      {
+        "label": "left_sidebar",
+        "bbox": [
+          0,
+          133,
+          120,
+          534
+        ],
+        "score": 0.6777170429069005,
+        "source": "uitag-yolo-lowconf"
+      },
+      {
+        "label": "main_content",
+        "bbox": [
+          120,
+          133,
+          854,
+          534
+        ],
+        "score": 0.7965384435653686,
+        "source": "uitag-yolo-coverage"
+      }
+    ]
+  }
+]

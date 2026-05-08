@@ -90,7 +90,7 @@ class NewRealtimeSettings:
             omniparser_weights_dir=os.getenv("OMNIPARSER_WEIGHTS_DIR", str(vendor_repo / "weights")).strip(),
             omniparser_bbox_threshold=float(os.getenv("OMNIPARSER_BBOX_THRESHOLD", os.getenv("OMNIPARSER_BOX_THRESHOLD", "0.05"))),
             omniparser_iou_threshold=float(os.getenv("OMNIPARSER_IOU_THRESHOLD", "0.10")),
-            omniparser_imgsz=int(os.getenv("OMNIPARSER_IMGSZ", "640")),
+            omniparser_imgsz=int(os.getenv("OMNIPARSER_IMGSZ", "512")),
             macro_layout_model_ref=os.getenv("MACRO_LAYOUT_MODEL_REF", str(macro_layout_weights)).strip(),
             macro_layout_model_filename=os.getenv("MACRO_LAYOUT_MODEL_FILENAME", "yolo-ui.pt").strip(),
             macro_layout_conf=float(os.getenv("MACRO_LAYOUT_CONF", "0.20")),

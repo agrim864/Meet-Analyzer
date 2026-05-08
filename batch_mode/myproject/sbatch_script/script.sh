@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=batch_mode
-#SBATCH --account=gshroff
 #SBATCH --partition=short
 #SBATCH --output=batch_mode/myproject/logs/%x_%j.out
 #SBATCH --error=batch_mode/myproject/logs/%x_%j.err
@@ -24,7 +23,8 @@ LOG_DIR="${PROJECT_DIR}/batch_mode/myproject/logs"
 mkdir -p "${LOG_DIR}"
 
 source ~/.bashrc || true
-CONDA_BIN="${HOME}/anaconda3/bin/conda"
+CONDA_BIN="${CONDA_BIN:-${HOME}/anaconda3/bin/conda}"
+CONDA_ENV="${BATCH_CLUSTER_CONDA_ENV:-torch_clean}"
 
 export PYTHONPATH="${PROJECT_DIR}:${PYTHONPATH:-}"
 export PYTHONUNBUFFERED=1
@@ -51,8 +51,8 @@ echo "BATCH_REQUEST_JSON=${BATCH_REQUEST_JSON:-}"
 echo "BATCH_LLM_BACKEND=${BATCH_LLM_BACKEND:-}"
 
 if [[ "${BATCH_BOOTSTRAP:-0}" == "1" ]]; then
-  "${CONDA_BIN}" run --no-capture-output -n torch_clean python -m pip install -r "${PROJECT_DIR}/batch_mode/requirements.txt"
-  "${CONDA_BIN}" run --no-capture-output -n torch_clean python - <<'PY'
+  "${CONDA_BIN}" run --no-capture-output -n "${CONDA_ENV}" python -m pip install -r "${PROJECT_DIR}/batch_mode/requirements.txt"
+  "${CONDA_BIN}" run --no-capture-output -n "${CONDA_ENV}" python - <<'PY'
 from huggingface_hub import snapshot_download
 import os
 
@@ -63,9 +63,9 @@ PY
 fi
 
 if [[ -n "${BATCH_REQUEST_JSON:-}" ]]; then
-  "${CONDA_BIN}" run --no-capture-output -n torch_clean python "${WORK_DIR}/test.py" \
+  "${CONDA_BIN}" run --no-capture-output -n "${CONDA_ENV}" python "${WORK_DIR}/test.py" \
     --request-json "${BATCH_REQUEST_JSON}" \
     --output-json "${BATCH_RESULT_JSON:-${PROJECT_DIR}/batch_mode/cluster_jobs/result.json}"
 else
-  "${CONDA_BIN}" run --no-capture-output -n torch_clean python "${WORK_DIR}/test.py" --source "${BATCH_SOURCE:?Set BATCH_SOURCE to a local path or public mp4 URL}"
+  "${CONDA_BIN}" run --no-capture-output -n "${CONDA_ENV}" python "${WORK_DIR}/test.py" --source "${BATCH_SOURCE:?Set BATCH_SOURCE to a local path or public mp4 URL}"
 fi

@@ -123,12 +123,10 @@ def build_metrics() -> None:
 
     rounded(draw, (70, 460, 1730, 945), "white", "#cad2e0", radius=24, width=2)
     text(draw, (105, 495), "Class reliability from sampled frames", 30, bold=True)
+    palette = [BLUE, GREEN, ORANGE, PURPLE, RED]
     class_rows = [
-        ("header", metrics["classes"]["header"], BLUE),
-        ("left_sidebar", metrics["classes"]["left_sidebar"], GREEN),
-        ("main_content", metrics["classes"]["main_content"], ORANGE),
-        ("right_sidebar", metrics["classes"]["right_sidebar"], PURPLE),
-        ("footer", metrics["classes"]["footer"], RED),
+        (name, data, palette[index % len(palette)])
+        for index, (name, data) in enumerate(metrics.get("classes", {}).items())
     ]
     y = 560
     for name, data, color in class_rows:
@@ -142,18 +140,24 @@ def build_metrics() -> None:
         text(draw, (1410, y - 2), data["source"], 22, MUTED)
         y += 72
 
-    text(draw, (105, 900), "Known weakness: right sidebar and footer are often low-confidence, but they are still retained when they explain uncovered screen areas.", 21, MUTED, width=1520)
+    text(
+        draw,
+        (105, 900),
+        "Current Bunny validation favors precision over decorative segmentation: unsupported sidebars are suppressed, while coverage falls back to main_content.",
+        21,
+        MUTED,
+        width=1520,
+    )
     img.save(ASSETS / "metrics_dashboard.png", quality=95)
 
 
 def build_class_gallery() -> None:
-    items = [
-        ("Header", "proof_header.jpg"),
-        ("Left Sidebar", "proof_left_sidebar.jpg"),
-        ("Main Content", "proof_main_content.jpg"),
-        ("Right Sidebar", "proof_right_sidebar.jpg"),
-        ("Footer", "proof_footer.jpg"),
-    ]
+    metrics = json.loads((ASSETS / "validation_metrics.json").read_text(encoding="utf-8"))
+    items = []
+    for name, data in metrics.get("classes", {}).items():
+        proof_name = Path(str(data.get("proof_image", ""))).name
+        if proof_name and (ASSETS / proof_name).exists():
+            items.append((name.replace("_", " ").title(), proof_name))
     thumbs = []
     for label, name in items:
         im = Image.open(ASSETS / name).convert("RGB")

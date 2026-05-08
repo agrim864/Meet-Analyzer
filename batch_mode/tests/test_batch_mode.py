@@ -157,6 +157,19 @@ class BatchModeTests(unittest.TestCase):
         self.assertEqual(groups[0].label, "main_content")
         self.assertEqual(groups[0].bbox, (0, 0, 1200, 900))
 
+    def test_batch_macro_layout_rejects_wide_left_edge_sidebar_false_positive(self) -> None:
+        detections = [
+            UIDetection(box=(24, 90 + idx * 70, 780, 120 + idx * 70), class_name="Navigation", confidence=0.78)
+            for idx in range(6)
+        ]
+
+        regions, confidences = estimate_coarse_regions(detections, width=1200, height=900)
+        groups = build_layout_groups(regions, confidences, frame_w=1200, frame_h=900)
+        labels = [group.label for group in groups]
+
+        self.assertNotIn("left_sidebar", labels)
+        self.assertIn("main_content", labels)
+
     def test_demo_summary_builds_bigger_picture_from_elements(self) -> None:
         groups = [
             LayoutGroup(id="group_main_content", label="main_content", bbox=(0, 0, 1200, 900), source="test"),

@@ -73,6 +73,19 @@ class MacroLayoutRulesTests(unittest.TestCase):
         left_group = next(group for group in groups if group.label == "left_sidebar")
         self.assertGreater(left_group.score, 0.75)
 
+    def test_wide_left_edge_controls_do_not_become_sidebar(self) -> None:
+        detections = [
+            UIDetection(box=(24, 90 + idx * 70, 780, 120 + idx * 70), class_name="Navigation", confidence=0.78)
+            for idx in range(6)
+        ]
+
+        regions, confidences = estimate_coarse_regions(detections, width=1200, height=900)
+        groups = build_layout_groups(regions, confidences, frame_w=1200, frame_h=900)
+        labels = [group.label for group in groups]
+
+        self.assertNotIn("left_sidebar", labels)
+        self.assertIn("main_content", labels)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -158,6 +158,9 @@ def estimate_coarse_regions(
     footer_scores: List[float] = []
     left_sidebar_scores: List[float] = []
     right_sidebar_scores: List[float] = []
+    footer_labels: List[str] = []
+    left_sidebar_labels: List[str] = []
+    right_sidebar_labels: List[str] = []
 
     for det in detections:
         x1, y1, x2, y2 = det.box
@@ -170,16 +173,20 @@ def estimate_coarse_regions(
             if cx < width / 2.0:
                 left_sidebar_candidates.append(det.box)
                 left_sidebar_scores.append(float(det.confidence))
+                left_sidebar_labels.append(klass)
             else:
                 right_sidebar_candidates.append(det.box)
                 right_sidebar_scores.append(float(det.confidence))
+                right_sidebar_labels.append(klass)
 
-        if klass in {"navigation", "menu"} and cx < left_limit and box_h > 20:
+        if klass in {"navigation", "menu"} and cx < left_limit and box_h > 20 and _is_side_rail_candidate(det.box, width, side="left"):
             left_sidebar_candidates.append(det.box)
             left_sidebar_scores.append(float(det.confidence))
-        if klass in {"navigation", "menu"} and cx > right_limit and box_h > 20:
+            left_sidebar_labels.append(klass)
+        if klass in {"navigation", "menu"} and cx > right_limit and box_h > 20 and _is_side_rail_candidate(det.box, width, side="right"):
             right_sidebar_candidates.append(det.box)
             right_sidebar_scores.append(float(det.confidence))
+            right_sidebar_labels.append(klass)
 
         if cy < top_limit and klass in {"navigation", "menu", "input_elements", "button"}:
             header_candidates.append(det.box)
@@ -188,6 +195,7 @@ def estimate_coarse_regions(
         if cy > bottom_limit and klass in {"information_display", "menu", "navigation", "others"}:
             footer_candidates.append(det.box)
             footer_scores.append(float(det.confidence))
+            footer_labels.append(klass)
 
     regions: Dict[str, Optional[BBox]] = {
         "header": None,
@@ -205,9 +213,34 @@ def estimate_coarse_regions(
     }
 
     header_box = union_boxes(header_candidates)
-    footer_box = union_boxes(footer_candidates)
-    left_sidebar_box = union_boxes(left_sidebar_candidates)
-    right_sidebar_box = union_boxes(right_sidebar_candidates)
+    footer_box = _accept_footer_box(
+        union_boxes(footer_candidates),
+        footer_candidates,
+        footer_scores,
+        footer_labels,
+        width=width,
+        height=height,
+    )
+    left_sidebar_box = _accept_sidebar_box(
+        union_boxes(left_sidebar_candidates),
+        left_sidebar_candidates,
+        left_sidebar_scores,
+        left_sidebar_labels,
+        width=width,
+        height=height,
+        header_limit=top_limit,
+        side="left",
+    )
+    right_sidebar_box = _accept_sidebar_box(
+        union_boxes(right_sidebar_candidates),
+        right_sidebar_candidates,
+        right_sidebar_scores,
+        right_sidebar_labels,
+        width=width,
+        height=height,
+        header_limit=top_limit,
+        side="right",
+    )
 
     if header_box:
         header_height = min(max(header_box[3] + 12, int(height * 0.08)), int(height * 0.25))
@@ -237,7 +270,7 @@ def estimate_coarse_regions(
     footer_top = regions["footer"][1] if regions["footer"] else height
 
     if left_sidebar_box:
-        left_edge = min(left_sidebar_box[2] + 15, int(width * 0.45))
+        left_edge = min(left_sidebar_box[2] + 15, int(width * 0.40))
         regions["left_sidebar"] = (0, header_bottom, left_edge, footer_top)
         region_confidences["left_sidebar"] = _region_confidence(
             left_sidebar_scores,
@@ -248,7 +281,7 @@ def estimate_coarse_regions(
         )
 
     if right_sidebar_box:
-        right_start = max(right_sidebar_box[0] - 15, int(width * 0.55))
+        right_start = max(right_sidebar_box[0] - 15, int(width * 0.60))
         regions["right_sidebar"] = (right_start, header_bottom, width, footer_top)
         region_confidences["right_sidebar"] = _region_confidence(
             right_sidebar_scores,
@@ -383,6 +416,93 @@ def _region_confidence(
             span = max(0.0, (x2 - x1) / max(1, width))
         span_bonus = min(0.10, span * 0.12)
     return float(min(0.99, base + count_bonus + span_bonus))
+
+
+def _accept_sidebar_box(
+    union: Optional[BBox],
+    candidates: Sequence[Sequence[int]],
+    scores: Sequence[float],
+    labels: Sequence[str],
+    *,
+    width: int,
+    height: int,
+    header_limit: int,
+    side: str,
+) -> Optional[BBox]:
+    if union is None:
+        return None
+    x1, y1, x2, y2 = union
+    span_w = max(0, x2 - x1)
+    span_h = max(0, y2 - y1)
+    if span_w < int(width * 0.06):
+        return None
+    if span_h < int(height * 0.18):
+        return None
+    if span_w > int(width * 0.36):
+        return None
+    if side == "left":
+        if x1 > int(width * 0.05) or x2 > int(width * 0.40):
+            return None
+    else:
+        if x2 < int(width * 0.95) or x1 < int(width * 0.60):
+            return None
+
+    below_header = sum(1 for box in candidates if len(box) >= 4 and int(box[3]) >= header_limit)
+    vertical_bands = _vertical_band_count(candidates, height)
+    direct_sidebar = "sidebar" in labels and below_header >= 1 and span_h >= int(height * 0.20)
+    distributed_clues = len(candidates) >= 4 and vertical_bands >= 3 and span_h >= int(height * 0.20)
+    strong_single = any(score >= 0.84 for score in scores) and span_h >= int(height * 0.30)
+    if direct_sidebar or distributed_clues or strong_single:
+        return union
+    return None
+
+
+def _accept_footer_box(
+    union: Optional[BBox],
+    candidates: Sequence[Sequence[int]],
+    scores: Sequence[float],
+    labels: Sequence[str],
+    *,
+    width: int,
+    height: int,
+) -> Optional[BBox]:
+    if union is None:
+        return None
+    x1, y1, x2, y2 = union
+    span_w = max(0, x2 - x1)
+    span_h = max(0, y2 - y1)
+    if y1 < int(height * 0.88):
+        return None
+    if span_w < int(width * 0.30):
+        return None
+    if span_h < int(height * 0.04):
+        return None
+    info_heavy = labels.count("information_display") >= 1
+    enough_clues = len(candidates) >= 2 or any(score >= 0.84 for score in scores) or info_heavy
+    return union if enough_clues else None
+
+
+def _is_side_rail_candidate(box: Sequence[int], width: int, *, side: str) -> bool:
+    if len(box) < 4:
+        return False
+    x1, _, x2, _ = [int(v) for v in box[:4]]
+    box_w = x2 - x1
+    if box_w > max(80, int(width * 0.34)):
+        return False
+    if side == "left":
+        return x1 <= int(width * 0.12) and x2 <= int(width * 0.40)
+    return x2 >= int(width * 0.88) and x1 >= int(width * 0.60)
+
+
+def _vertical_band_count(boxes: Sequence[Sequence[int]], height: int) -> int:
+    band_h = max(1, int(height * 0.12))
+    bands = set()
+    for box in boxes:
+        if len(box) < 4:
+            continue
+        cy = (int(box[1]) + int(box[3])) / 2.0
+        bands.add(int(cy / band_h))
+    return len(bands)
 
 
 def _resolve_bundled_uitag_weights() -> Optional[str]:

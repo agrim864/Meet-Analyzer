@@ -84,6 +84,8 @@ class ClientChangeIn(BaseModel):
 class ProcessFrameRequest(BaseModel):
     session_id: str
     timestamp: float
+    client_frame_id: int = 0
+    client_sent_at: Optional[float] = None
     client_mode_hint: str = "unknown"
     frame_jpeg_base64: str
     client_change: ClientChangeIn = Field(default_factory=ClientChangeIn)
@@ -113,6 +115,9 @@ class SessionRuntime:
     pipeline: Optional[DemoAnalyzerPipeline] = None
     seen_transcript_keys: Set[Tuple[float, float, str]] = field(default_factory=set)
     frame_lock: Any = field(default_factory=threading.Lock)
+    frame_state_lock: Any = field(default_factory=threading.Lock)
+    latest_client_frame_id: int = 0
+    latest_completed_frame_id: int = 0
 
 
 class PipelineSessionManager:
@@ -198,13 +203,14 @@ class PipelineSessionManager:
         return (time.time() - started) <= float(grace_sec)
 
     @staticmethod
-    def remote_warmup_status_placeholder() -> Dict[str, Any]:
+    def remote_warmup_status_placeholder(remote_error: Optional[str] = None) -> Dict[str, Any]:
         return {
             "warmed": False,
             "running": True,
             "error": None,
             "deepgram_ready": False,
             "pending_remote_cold_start": True,
+            "remote_warning": remote_error,
         }
 
     def _build_session_pipeline(self, runtime: Any) -> DemoAnalyzerPipeline:
@@ -252,12 +258,43 @@ class PipelineSessionManager:
     def stop_session(self, session_id: str) -> bool:
         return self._sessions.pop(session_id, None) is not None
 
+    def note_client_frame(self, session_id: str, client_frame_id: int) -> Tuple[bool, int]:
+        session = self.start_session(session_id, None)
+        frame_id = int(client_frame_id or 0)
+        if frame_id <= 0:
+            return True, session.latest_client_frame_id
+        with session.frame_state_lock:
+            if frame_id < session.latest_client_frame_id:
+                return False, session.latest_client_frame_id
+            session.latest_client_frame_id = frame_id
+            return True, session.latest_client_frame_id
+
+    def is_stale_client_frame(self, session: SessionRuntime, client_frame_id: int) -> Tuple[bool, int]:
+        frame_id = int(client_frame_id or 0)
+        if frame_id <= 0:
+            return False, session.latest_client_frame_id
+        with session.frame_state_lock:
+            return frame_id < session.latest_client_frame_id, session.latest_client_frame_id
+
+    def mark_client_frame_completed(self, session: SessionRuntime, client_frame_id: int) -> None:
+        frame_id = int(client_frame_id or 0)
+        if frame_id <= 0:
+            return
+        with session.frame_state_lock:
+            session.latest_completed_frame_id = max(session.latest_completed_frame_id, frame_id)
+
     def process_frame(self, payload: ProcessFrameRequest) -> Dict[str, Any]:
         runtime = self._ensure_runtime(warm=True)
         session = self.start_session(payload.session_id, None)
+        fresh, latest_frame_id = self.note_client_frame(payload.session_id, payload.client_frame_id)
+        if not fresh:
+            return _stale_frame_response(payload.session_id, payload, latest_frame_id)
         if session.pipeline is None:
             session.pipeline = self._build_session_pipeline(runtime)
         with session.frame_lock:
+            stale, latest_frame_id = self.is_stale_client_frame(session, payload.client_frame_id)
+            if stale:
+                return _stale_frame_response(payload.session_id, payload, latest_frame_id)
             for chunk in payload.recent_transcript:
                 transcript_key = (
                     float(chunk.start_time),
@@ -277,8 +314,13 @@ class PipelineSessionManager:
 
             frame_bgr = _decode_base64_jpeg(payload.frame_jpeg_base64)
             record = session.pipeline.ingest_frame(frame_bgr, timestamp_sec=float(payload.timestamp))
+            self.mark_client_frame_completed(session, payload.client_frame_id)
+            stale, latest_frame_id = self.is_stale_client_frame(session, payload.client_frame_id)
+            if stale:
+                return _stale_frame_response(payload.session_id, payload, latest_frame_id)
         route = dict(record.confidence.get("route", {}))
         debug = dict(record.debug)
+        stage_timings = dict(debug.get("stage_timings_ms") or {})
         visual_payload = dict(record.visual_payload)
         merged_bbox = payload.client_change.merged_changed_bbox
         if merged_bbox and "changed_bbox" not in visual_payload:
@@ -287,6 +329,9 @@ class PipelineSessionManager:
         return {
             "session_id": payload.session_id,
             "timestamp": float(payload.timestamp),
+            "client_frame_id": int(payload.client_frame_id or 0),
+            "client_sent_at": payload.client_sent_at,
+            "stale": False,
             "mode": record.mode,
             "mode_confidence": float(route.get("confidence", 0.0)),
             "decision_path": str(route.get("decision_path", "")),
@@ -304,6 +349,7 @@ class PipelineSessionManager:
                 "summary_provider": str(debug.get("summary_provider", "heuristic")),
                 "summary_model": str(debug.get("summary_model", "heuristic")),
                 "processing_time_ms": float(debug.get("processing_time_ms", 0.0)),
+                "stage_timings_ms": stage_timings,
                 "change_score": float(debug.get("change_score", 0.0)),
                 "crop_bbox": debug.get("crop_bbox"),
                 "client_change": payload.client_change.model_dump(),
@@ -381,6 +427,33 @@ def _encode_jpeg_data_url(frame_bgr: np.ndarray, *, quality: int = 80) -> str:
     if not success:
         return ""
     return "data:image/jpeg;base64," + base64.b64encode(encoded.tobytes()).decode("ascii")
+
+
+def _stale_frame_response(session_id: str, payload: ProcessFrameRequest, latest_frame_id: int) -> Dict[str, Any]:
+    return {
+        "session_id": session_id,
+        "timestamp": float(payload.timestamp),
+        "client_frame_id": int(payload.client_frame_id or 0),
+        "client_sent_at": payload.client_sent_at,
+        "latest_client_frame_id": int(latest_frame_id or 0),
+        "stale": True,
+        "dropped": True,
+        "mode": payload.client_mode_hint or "unknown",
+        "mode_confidence": 0.0,
+        "decision_path": "stale_client_frame_dropped",
+        "visual_change": False,
+        "processor_used": "stale_drop",
+        "cursor": {},
+        "visual_payload": {"mode": payload.client_mode_hint or "unknown", "visual_change": False},
+        "summary": "Dropped stale frame.",
+        "debug": {
+            "processing_time_ms": 0.0,
+            "stage_timings_ms": {},
+            "client_change": payload.client_change.model_dump(),
+            "stale_reason": "newer client frame superseded this response",
+        },
+        "raw_record": {},
+    }
 
 
 def _draw_labeled_box(frame: np.ndarray, box: Optional[List[int]], color: Tuple[int, int, int], label: str, thickness: int = 2) -> None:
@@ -515,6 +588,12 @@ def _cursor_text_from_response(response_json: Dict[str, Any]) -> str:
 
 
 def _resummarize_response(manager: PipelineSessionManager, response_json: Dict[str, Any]) -> Dict[str, Any]:
+    enabled = os.getenv("LIVE_RESUMMARIZE_RESPONSES", "0").strip().lower() in {"1", "true", "yes"}
+    if not enabled:
+        response_json.setdefault("debug", {})
+        response_json["debug"].setdefault("summary_provider", "remote")
+        response_json["debug"].setdefault("summary_model", "remote")
+        return response_json
     summarizer = manager._ensure_frame_summarizer()
     request = FrameSummaryRequest(
         timestamp_sec=float(response_json.get("timestamp", 0.0)),
@@ -591,12 +670,16 @@ def frontend_config() -> Dict[str, Any]:
         "supabaseAnonKey": os.getenv("VITE_SUPABASE_ANON_KEY", "").strip(),
         "deepgramProxyUrl": os.getenv("VITE_DEEPGRAM_PROXY_URL", "").strip(),
         "enableDebugJson": os.getenv("VITE_ENABLE_DEBUG_JSON", "true").strip().lower() in {"1", "true", "yes"},
+        "captureMaxSide": int(os.getenv("VITE_CAPTURE_MAX_SIDE", "512")),
+        "frameJpegQuality": float(os.getenv("VITE_FRAME_JPEG_QUALITY", "0.46")),
+        "maxInFlightFrames": int(os.getenv("VITE_MAX_IN_FLIGHT_FRAMES", "2")),
+        "fullFrameChangeRatio": float(os.getenv("VITE_FULL_FRAME_CHANGE_RATIO", "0.55")),
         "frameIntervalsMs": {
-            "demo": int(os.getenv("VITE_FRAME_INTERVAL_DEMO_MS", "1000")),
-            "code": int(os.getenv("VITE_FRAME_INTERVAL_CODE_MS", "2000")),
-            "slide": int(os.getenv("VITE_FRAME_INTERVAL_SLIDE_MS", "3000")),
-            "other": int(os.getenv("VITE_FRAME_INTERVAL_OTHER_MS", "3000")),
-            "unknown": int(os.getenv("VITE_FRAME_INTERVAL_OTHER_MS", "3000")),
+            "demo": int(os.getenv("VITE_FRAME_INTERVAL_DEMO_MS", "300")),
+            "code": int(os.getenv("VITE_FRAME_INTERVAL_CODE_MS", "450")),
+            "slide": int(os.getenv("VITE_FRAME_INTERVAL_SLIDE_MS", "650")),
+            "other": int(os.getenv("VITE_FRAME_INTERVAL_OTHER_MS", "1000")),
+            "unknown": int(os.getenv("VITE_FRAME_INTERVAL_UNKNOWN_MS", "500")),
         },
     }
 
@@ -606,6 +689,7 @@ def transcribe_audio(payload: AudioTranscribeRequest) -> JSONResponse:
     try:
         return JSONResponse(manager.transcribe_audio(payload))
     except Exception as exc:
+        local_error = f"{type(exc).__name__}: {exc}"
         base = _modal_base_url()
         if base:
             try:
@@ -618,14 +702,23 @@ def transcribe_audio(payload: AudioTranscribeRequest) -> JSONResponse:
                     raise RuntimeError(f"Modal returned {response.status_code}: {response.text}")
                 return JSONResponse(response.json())
             except Exception as modal_exc:
-                raise HTTPException(
-                    status_code=500,
-                    detail=(
-                        f"Transcript processing failed locally: {type(exc).__name__}: {exc}. "
-                        f"Modal fallback failed: {type(modal_exc).__name__}: {modal_exc}"
-                    ),
-                ) from modal_exc
-        raise HTTPException(status_code=500, detail=f"Transcript processing failed locally: {type(exc).__name__}: {exc}") from exc
+                return JSONResponse(
+                    {
+                        "session_id": payload.session_id,
+                        "chunks": [],
+                        "transcript_error": (
+                            f"Local transcription failed: {local_error}. "
+                            f"Modal fallback failed: {type(modal_exc).__name__}: {modal_exc}"
+                        ),
+                    }
+                )
+        return JSONResponse(
+            {
+                "session_id": payload.session_id,
+                "chunks": [],
+                "transcript_error": f"Local transcription failed: {local_error}",
+            }
+        )
 
 
 @app.post("/api/sessions/start")
@@ -676,12 +769,14 @@ def warmup_start() -> Dict[str, Any]:
         manager.note_remote_warmup_started()
         proxied = _proxy_modal_dict("POST", "/api/warmup/start", timeout_sec=8.0)
         if proxied is not None:
+            if proxied.get("error") and _modal_base_url():
+                return manager.remote_warmup_status_placeholder(str(proxied.get("error")))
             if proxied.get("warmed") and proxied.get("deepgram_ready"):
                 manager.clear_remote_warmup_pending()
             return proxied
     except Exception as exc:
         if _modal_base_url() and manager.remote_warmup_pending():
-            return manager.remote_warmup_status_placeholder()
+            return manager.remote_warmup_status_placeholder(f"{type(exc).__name__}: {exc}")
         raise HTTPException(status_code=502, detail=f"Modal warmup start failed: {type(exc).__name__}: {exc}") from exc
     manager.kickoff_warmup()
     return manager.warmup_status()
@@ -692,46 +787,79 @@ def warmup_status() -> Dict[str, Any]:
     try:
         proxied = _proxy_modal_dict("GET", "/api/warmup/status", timeout_sec=5.0)
         if proxied is not None:
+            if proxied.get("error") and _modal_base_url():
+                return manager.remote_warmup_status_placeholder(str(proxied.get("error")))
             if proxied.get("warmed") and proxied.get("deepgram_ready"):
                 manager.clear_remote_warmup_pending()
             return proxied
     except Exception as exc:
         if _modal_base_url() and manager.remote_warmup_pending():
-            return manager.remote_warmup_status_placeholder()
+            return manager.remote_warmup_status_placeholder(f"{type(exc).__name__}: {exc}")
         raise HTTPException(status_code=502, detail=f"Modal warmup status failed: {type(exc).__name__}: {exc}") from exc
     return manager.warmup_status()
 
 
 @app.post("/api/process-frame")
 def process_frame(payload: ProcessFrameRequest) -> JSONResponse:
+    endpoint_started = time.perf_counter()
+    fresh, latest_frame_id = manager.note_client_frame(payload.session_id, payload.client_frame_id)
+    if not fresh:
+        return JSONResponse(_stale_frame_response(payload.session_id, payload, latest_frame_id))
     process_url = _modal_process_frame_url()
     if process_url:
         try:
+            proxy_started = time.perf_counter()
             response = requests.post(
                 process_url,
                 json=payload.model_dump(),
                 timeout=float(os.getenv("MODAL_PROXY_TIMEOUT_SEC", "120")),
             )
+            proxy_ms = (time.perf_counter() - proxy_started) * 1000.0
             if not response.ok:
                 raise RuntimeError(f"Modal returned {response.status_code}: {response.text}")
             response_json = response.json()
+            if response_json.get("stale") or response_json.get("dropped"):
+                return JSONResponse(response_json)
             response_json = _resummarize_response(manager, response_json)
+            annotation_started = time.perf_counter()
             response_json["annotated_image_data_url"] = _annotate_response_frame(
                 _decode_base64_jpeg(payload.frame_jpeg_base64),
                 response_json,
+            )
+            response_json.setdefault("debug", {})
+            response_json["debug"].setdefault("stage_timings_ms", {})
+            response_json["debug"]["stage_timings_ms"].update(
+                {
+                    "modal_proxy_ms": proxy_ms,
+                    "annotation_ms": (time.perf_counter() - annotation_started) * 1000.0,
+                    "endpoint_total_ms": (time.perf_counter() - endpoint_started) * 1000.0,
+                }
             )
             return JSONResponse(response_json)
         except Exception as exc:
             fallback_enabled = os.getenv("ENABLE_LOCAL_MODAL_FALLBACK", "0").strip().lower() in {"1", "true", "yes"}
             if fallback_enabled:
                 try:
+                    manager_started = time.perf_counter()
                     local_response = manager.process_frame(payload)
+                    manager_ms = (time.perf_counter() - manager_started) * 1000.0
+                    if local_response.get("stale") or local_response.get("dropped"):
+                        return JSONResponse(local_response)
                     local_response = _resummarize_response(manager, local_response)
+                    annotation_started = time.perf_counter()
                     local_response["annotated_image_data_url"] = _annotate_response_frame(
                         _decode_base64_jpeg(payload.frame_jpeg_base64),
                         local_response,
                     )
                     local_response.setdefault("debug", {})
+                    local_response["debug"].setdefault("stage_timings_ms", {})
+                    local_response["debug"]["stage_timings_ms"].update(
+                        {
+                            "local_fallback_manager_ms": manager_ms,
+                            "annotation_ms": (time.perf_counter() - annotation_started) * 1000.0,
+                            "endpoint_total_ms": (time.perf_counter() - endpoint_started) * 1000.0,
+                        }
+                    )
                     local_response["debug"]["modal_proxy_error"] = f"{type(exc).__name__}: {exc}"
                     local_response["debug"]["modal_proxy_fallback"] = True
                     return JSONResponse(local_response)
@@ -749,11 +877,25 @@ def process_frame(payload: ProcessFrameRequest) -> JSONResponse:
             ) from exc
 
     try:
+        manager_started = time.perf_counter()
         response = manager.process_frame(payload)
+        manager_ms = (time.perf_counter() - manager_started) * 1000.0
+        if response.get("stale") or response.get("dropped"):
+            return JSONResponse(response)
         response = _resummarize_response(manager, response)
+        annotation_started = time.perf_counter()
         response["annotated_image_data_url"] = _annotate_response_frame(
             _decode_base64_jpeg(payload.frame_jpeg_base64),
             response,
+        )
+        response.setdefault("debug", {})
+        response["debug"].setdefault("stage_timings_ms", {})
+        response["debug"]["stage_timings_ms"].update(
+            {
+                "local_manager_ms": manager_ms,
+                "annotation_ms": (time.perf_counter() - annotation_started) * 1000.0,
+                "endpoint_total_ms": (time.perf_counter() - endpoint_started) * 1000.0,
+            }
         )
         return JSONResponse(response)
     except Exception as exc:

@@ -107,5 +107,9 @@ dependency_args=()
 if [[ -n "${BATCH_DEPENDENCY_AFTER_JOB_ID:-}" ]]; then
   dependency_args+=(--dependency="afterany:${BATCH_DEPENDENCY_AFTER_JOB_ID}")
 fi
+account_args=()
+if [[ -n "${BATCH_CLUSTER_ACCOUNT:-}" ]]; then
+  account_args+=(--account="${BATCH_CLUSTER_ACCOUNT}")
+fi
 
-sbatch "${dependency_args[@]}" --export=ALL batch_mode/myproject/sbatch_script/script.sh
+sbatch "${account_args[@]}" "${dependency_args[@]}" --export=ALL batch_mode/myproject/sbatch_script/script.sh

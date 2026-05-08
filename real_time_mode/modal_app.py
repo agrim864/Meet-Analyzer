@@ -56,6 +56,7 @@ image = (
             "MACRO_LAYOUT_MODEL_FILENAME": UI_MODEL_FILENAME,
             "OMNIPARSER_REPO_DIR": f"{REMOTE_REALTIME_ROOT}/vendor/OmniParser",
             "OMNIPARSER_WEIGHTS_DIR": f"{REMOTE_REALTIME_ROOT}/vendor/OmniParser/weights",
+            "OMNIPARSER_IMGSZ": "512",
         }
     )
     .add_local_dir(
@@ -102,6 +103,8 @@ class ClientChangeIn(BaseModel):
 class ProcessFrameRequest(BaseModel):
     session_id: str
     timestamp: float
+    client_frame_id: int = 0
+    client_sent_at: Optional[float] = None
     client_mode_hint: str = "unknown"
     frame_jpeg_base64: str
     client_change: ClientChangeIn = Field(default_factory=ClientChangeIn)
@@ -131,6 +134,9 @@ class SessionRuntime:
     pipeline: Any
     seen_transcript_keys: Set[Tuple[float, float, str]] = field(default_factory=set)
     frame_lock: Any = field(default_factory=threading.Lock)
+    frame_state_lock: Any = field(default_factory=threading.Lock)
+    latest_client_frame_id: int = 0
+    latest_completed_frame_id: int = 0
 
 
 class PipelineSessionManager:
@@ -246,6 +252,30 @@ class PipelineSessionManager:
     def stop_session(self, session_id: str) -> bool:
         return self._sessions.pop(session_id, None) is not None
 
+    def note_client_frame(self, session: SessionRuntime, client_frame_id: int) -> Tuple[bool, int]:
+        frame_id = int(client_frame_id or 0)
+        if frame_id <= 0:
+            return True, session.latest_client_frame_id
+        with session.frame_state_lock:
+            if frame_id < session.latest_client_frame_id:
+                return False, session.latest_client_frame_id
+            session.latest_client_frame_id = frame_id
+            return True, session.latest_client_frame_id
+
+    def is_stale_client_frame(self, session: SessionRuntime, client_frame_id: int) -> Tuple[bool, int]:
+        frame_id = int(client_frame_id or 0)
+        if frame_id <= 0:
+            return False, session.latest_client_frame_id
+        with session.frame_state_lock:
+            return frame_id < session.latest_client_frame_id, session.latest_client_frame_id
+
+    def mark_client_frame_completed(self, session: SessionRuntime, client_frame_id: int) -> None:
+        frame_id = int(client_frame_id or 0)
+        if frame_id <= 0:
+            return
+        with session.frame_state_lock:
+            session.latest_completed_frame_id = max(session.latest_completed_frame_id, frame_id)
+
     def transcribe_audio(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         self._ensure_runtime()
         self.start_session(str(payload.get("session_id", "")).strip(), None)
@@ -291,7 +321,13 @@ class PipelineSessionManager:
         if not session_id:
             raise HTTPException(status_code=400, detail="session_id is required")
         session = self.start_session(session_id, None)
+        fresh, latest_frame_id = self.note_client_frame(session, int(payload.get("client_frame_id") or 0))
+        if not fresh:
+            return _stale_frame_response(payload, latest_frame_id)
         with session.frame_lock:
+            stale, latest_frame_id = self.is_stale_client_frame(session, int(payload.get("client_frame_id") or 0))
+            if stale:
+                return _stale_frame_response(payload, latest_frame_id)
             for chunk in list(payload.get("recent_transcript") or []):
                 transcript_key = (
                     float(chunk.get("start_time", 0.0)),
@@ -321,8 +357,13 @@ class PipelineSessionManager:
 
             timestamp = float(payload.get("timestamp", 0.0))
             record = session.pipeline.ingest_frame(frame_bgr, timestamp_sec=timestamp)
+            self.mark_client_frame_completed(session, int(payload.get("client_frame_id") or 0))
+            stale, latest_frame_id = self.is_stale_client_frame(session, int(payload.get("client_frame_id") or 0))
+            if stale:
+                return _stale_frame_response(payload, latest_frame_id)
         route = dict(record.confidence.get("route", {}))
         debug = dict(record.debug)
+        stage_timings = dict(debug.get("stage_timings_ms") or {})
         visual_payload = dict(record.visual_payload)
         client_change = dict(payload.get("client_change") or {})
         merged_bbox = client_change.get("merged_changed_bbox")
@@ -332,6 +373,9 @@ class PipelineSessionManager:
         return {
             "session_id": session_id,
             "timestamp": timestamp,
+            "client_frame_id": int(payload.get("client_frame_id") or 0),
+            "client_sent_at": payload.get("client_sent_at"),
+            "stale": False,
             "mode": record.mode,
             "mode_confidence": float(route.get("confidence", 0.0)),
             "decision_path": str(route.get("decision_path", "")),
@@ -349,12 +393,41 @@ class PipelineSessionManager:
                 "summary_provider": str(debug.get("summary_provider", "heuristic")),
                 "summary_model": str(debug.get("summary_model", "heuristic")),
                 "processing_time_ms": float(debug.get("processing_time_ms", 0.0)),
+                "stage_timings_ms": stage_timings,
                 "change_score": float(debug.get("change_score", 0.0)),
                 "crop_bbox": debug.get("crop_bbox"),
                 "client_change": client_change,
             },
             "raw_record": record.to_dict(),
         }
+
+
+def _stale_frame_response(payload: Dict[str, Any], latest_frame_id: int) -> Dict[str, Any]:
+    client_change = dict(payload.get("client_change") or {})
+    return {
+        "session_id": str(payload.get("session_id", "")).strip(),
+        "timestamp": float(payload.get("timestamp", 0.0)),
+        "client_frame_id": int(payload.get("client_frame_id") or 0),
+        "client_sent_at": payload.get("client_sent_at"),
+        "latest_client_frame_id": int(latest_frame_id or 0),
+        "stale": True,
+        "dropped": True,
+        "mode": str(payload.get("client_mode_hint") or "unknown"),
+        "mode_confidence": 0.0,
+        "decision_path": "stale_client_frame_dropped",
+        "visual_change": False,
+        "processor_used": "stale_drop",
+        "cursor": {},
+        "visual_payload": {"mode": str(payload.get("client_mode_hint") or "unknown"), "visual_change": False},
+        "summary": "Dropped stale frame.",
+        "debug": {
+            "processing_time_ms": 0.0,
+            "stage_timings_ms": {},
+            "client_change": client_change,
+            "stale_reason": "newer client frame superseded this response",
+        },
+        "raw_record": {},
+    }
 
 
 def get_shared_manager() -> PipelineSessionManager:
