@@ -128,7 +128,7 @@ class BatchModeSettings:
             deepgram_api_key=os.getenv("DEEPGRAM_API_KEY", "").strip(),
             deepgram_model=os.getenv("DEEPGRAM_MODEL", "nova-3").strip(),
             hf_api_key=os.getenv("HF_API_KEY", "").strip(),
-            ocr_mode=os.getenv("OCR_MODE", "cpu").strip(),
+            ocr_mode=os.getenv("OCR_MODE", "gpu").strip(),
             ocr_lang=os.getenv("OCR_LANG", "en").strip(),
             surya_enabled=os.getenv("SURYA_ENABLED", "1").strip().lower() not in {"0", "false", "no"},
             cursor_model_url=os.getenv(

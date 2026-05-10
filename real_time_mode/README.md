@@ -97,7 +97,7 @@ Micro metrics:
 | Mode router | SigLIP/SigLIP2 prompt bank and sticky routing | Chooses demo, slide, code, or other |
 | Macro segmentation | yolo-ui detector plus geometry guards | Finds header, sidebar, and main content without over-labeling sidebars |
 | Micro parsing | OmniParser v2 icon detector/caption stack | Extracts controls, icons, text regions, and visible UI boxes |
-| OCR | RapidOCR by default, EasyOCR for GPU quality, optional PaddleOCR path | Reads slide, code, and live UI text with low-latency CPU fallback |
+| OCR | EasyOCR on GPU by default, RapidOCR for CPU fallback, optional PaddleOCR path | Reads slide, code, and live UI text |
 | Slide adapter | OCR-derived layout in real-time; compatible with the batch Surya contract | Emits slide title, layout blocks, reading order, and fingerprints |
 | Cursor | YOLO cursor model plus fallback logic | Tracks pointer hotspot and target element |
 | Change detector | SSIM and changed-pixel regions | Reuses cache and reparses changed crops |
@@ -140,7 +140,7 @@ Copy-Item real_time_mode\.env.example real_time_mode\.env
 Recommended live defaults:
 
 ```env
-OCR_MODE=cpu
+OCR_MODE=gpu
 OCR_BACKEND_GPU=easyocr
 OCR_BACKEND_CPU=rapidocr
 OMNIPARSER_IMGSZ=512

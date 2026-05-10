@@ -120,7 +120,7 @@ Micro elements are assigned back to their parent macro region before report cons
 | Macro layout | yolo-ui detector plus geometry post-processing | Finds header/sidebar/main-content regions while suppressing false sidebars |
 | Coverage fallback | Grid coverage assignment to `main_content` | Ensures every important screen area belongs to a macro region |
 | Micro parsing | OmniParser v2 icon detector and caption stack | Extracts controls, icons, text boxes, and visible UI elements |
-| OCR | RapidOCR by default, EasyOCR for GPU-oriented dense text, optional PaddleOCR path | Reads code, slide, and UI text when captions are weak |
+| OCR | EasyOCR on GPU by default, RapidOCR for CPU throughput, optional PaddleOCR path | Reads code, slide, and UI text when captions are weak |
 | Surya slide path | Surya layout/OCR predictors when installed, OCR-derived fallback otherwise | Produces slide title, block types, reading order, and duplicate-slide fingerprints |
 | Cursor model | YOLO cursor detector with motion/template fallback | Links pointer movement to UI elements and macro regions |
 | Change detection | SSIM, changed-pixel ratio, crop boxes, and mode thresholds | Avoids full reparse on unchanged frames |
@@ -166,7 +166,7 @@ BATCH_LLM_BACKEND=mock
 BATCH_LLM_MOCK_ENABLED=1
 BATCH_LLM_USE_PREWRITTEN=1
 BATCH_EMBEDDING_DEVICE=cpu
-OCR_MODE=cpu
+OCR_MODE=gpu
 ```
 
 For GPU OCR:

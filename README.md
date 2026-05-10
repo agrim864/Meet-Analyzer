@@ -82,7 +82,7 @@ Micro element parsing:
 | Screen mode routing | SigLIP/SigLIP2 prompt bank with positive and negative prompts | Routes frames into demo, slide, code, or other modes |
 | Macro segmentation | `swaylenhayes/uitag-yolo11s-ui-detect-v1` weights, committed as `real_time_mode/vendor/uitag/yolo-ui.pt` | Detects coarse page regions and rejects unsupported sidebar geometry |
 | Micro UI parsing | OmniParser v2 icon detector plus OCR/caption content | Extracts clickable controls, icons, visible text, and UI element boxes |
-| OCR | RapidOCR by default, EasyOCR on GPU, optional PaddleOCR path in the shared adapter | Reads code, slide, and UI text when captions are insufficient |
+| OCR | EasyOCR on GPU by default, RapidOCR on CPU, optional PaddleOCR path in the shared adapter | Reads code, slide, and UI text when captions are insufficient |
 | Slide understanding | Batch mode uses Surya layout/OCR when installed, then falls back to OCR-derived layout | Produces slide blocks, reading order, title, fingerprint, and duplicate-slide checks |
 | Cursor tracking | YOLO cursor detector plus motion/template fallback | Tracks pointer location and attaches cursor actions to UI targets |
 | Change detection | SSIM, changed-pixel ratio, region crops, and mode-specific thresholds | Avoids reparsing stable frames and keeps real-time latency low |
