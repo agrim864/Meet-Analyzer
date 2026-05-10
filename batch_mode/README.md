@@ -120,12 +120,24 @@ Micro elements are assigned back to their parent macro region before report cons
 | Macro layout | yolo-ui detector plus geometry post-processing | Finds header/sidebar/main-content regions while suppressing false sidebars |
 | Coverage fallback | Grid coverage assignment to `main_content` | Ensures every important screen area belongs to a macro region |
 | Micro parsing | OmniParser v2 icon detector and caption stack | Extracts controls, icons, text boxes, and visible UI elements |
-| OCR | EasyOCR for GPU-oriented dense text, RapidOCR for CPU throughput, optional PaddleOCR path | Reads code, slide, and UI text when captions are weak |
+| OCR | RapidOCR by default, EasyOCR for GPU-oriented dense text, optional PaddleOCR path | Reads code, slide, and UI text when captions are weak |
 | Surya slide path | Surya layout/OCR predictors when installed, OCR-derived fallback otherwise | Produces slide title, block types, reading order, and duplicate-slide fingerprints |
 | Cursor model | YOLO cursor detector with motion/template fallback | Links pointer movement to UI elements and macro regions |
 | Change detection | SSIM, changed-pixel ratio, crop boxes, and mode thresholds | Avoids full reparse on unchanged frames |
 | Topic linker | BGE-M3 embeddings plus time/mode heuristics | Groups screen events and transcript into coherent report sections |
 | Report writers | Mock, Gemini, OpenRouter, local HF Mistral, Qwen | Supports deterministic smoke tests and production-quality Markdown |
+
+## Demo-Mode Structure
+
+Batch demo analysis writes a structured, auditable view of every detected screen state. The analyzer starts with macro regions, then runs OmniParser and OCR in the same changed crop set. Each macro region receives a top-to-bottom, left-to-right `children` list plus a flat `reading_order` list for report generation.
+
+When OCR and OmniParser overlap, the structure preserves containment:
+
+1. OmniParser element inside OCR text box: the UI element is nested under the OCR node.
+2. OCR text inside a UI element: the OCR node is nested under the UI element.
+3. Partial overlap: the UI node keeps the OCR text as attached evidence.
+
+The change policy is the same as the live path: contained changes reparse only changed macro-region crops, while boundary-level changes trigger a fresh macro pass and a full-screen OmniParser/OCR parse.
 
 ## Setup
 

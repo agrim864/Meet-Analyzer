@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import re
+from collections import Counter
 from dataclasses import dataclass, field
 from difflib import ndiff
 from pathlib import Path
@@ -18,7 +20,6 @@ from .frame_summarizer import (
     HeuristicFrameSummarizer,
     ResilientFrameSummarizer,
     SummaryMemoryTurn,
-    _collect_micro_highlights,
     _looks_like_noise,
 )
 from .macro_layout import MacroLayoutDetector
@@ -545,12 +546,23 @@ class DemoAnalyzerPipeline:
             stage_timings["omniparser_ms"] = (perf_counter() - parse_started) * 1000.0
             omniparser_ran = True
 
-            for element in parsed.elements:
+            ocr_started = perf_counter()
+            demo_ocr = self._safe_extract_ocr_regions(frame_bgr, reparsed_regions, "demo")
+            stage_timings["ocr_ms"] = (perf_counter() - ocr_started) * 1000.0
+            ocr_elements = _elements_from_ocr_lines(
+                demo_ocr.lines,
+                frame_id=self._frame_id,
+                timestamp_sec=timestamp_sec,
+                prefix="demo_ocr",
+            )
+            reparsed_elements = [*parsed.elements, *ocr_elements]
+
+            for element in reparsed_elements:
                 element.parent_macro_region_id = _parent_group_id_for_box(element.bbox, macro_layout)
                 element.timestamp = float(timestamp_sec)
             merged_state = merge_reparsed_state(
                 state=state,
-                reparsed_elements=parsed.elements,
+                reparsed_elements=reparsed_elements,
                 reparsed_overlays=parsed.overlays,
                 reparsed_regions=reparsed_regions,
                 frame_id=self._frame_id,
@@ -561,7 +573,15 @@ class DemoAnalyzerPipeline:
             merged_state.frame_type = "demo"
             merged_state.cursor = self.cache.cursor_state.copy()
             cursor_target = self._match_cursor_target(self.cache.cursor_state, merged_state.elements, merged_state.layout_groups)
-            page_summary = self._build_demo_page_summary(merged_state.layout_groups, merged_state.elements, merged_state.overlays, cursor_target)
+            screen_structure = _build_demo_screen_structure(merged_state.layout_groups, merged_state.elements)
+            page_summary = self._build_demo_page_summary(
+                merged_state.layout_groups,
+                merged_state.elements,
+                merged_state.overlays,
+                cursor_target,
+                screen_structure=screen_structure,
+            )
+            ocr_text = _reading_text_from_elements(merged_state.elements, source_prefix="ocr")
             visual_change = first_frame or change.changed
             visual_payload = {
                 "mode": "demo",
@@ -569,6 +589,10 @@ class DemoAnalyzerPipeline:
                 "change_type": change.change_type,
                 "macro_layout": [_serialize_layout_group(group) for group in merged_state.layout_groups],
                 "micro_elements": [_serialize_micro_element(item) for item in merged_state.elements],
+                "ocr_text": ocr_text,
+                "updated_ocr_text": demo_ocr.text,
+                "ocr_lines": _ocr_lines_from_elements(merged_state.elements),
+                "screen_structure": screen_structure,
                 "cursor": _cursor_payload(self.cache.cursor_state),
                 "cursor_target": cursor_target,
                 "updated_regions": [item.get("parent_macro_region_id") for item in crop_plan if item.get("parent_macro_region_id")],
@@ -581,6 +605,8 @@ class DemoAnalyzerPipeline:
             merged_state.confidence = {
                 "parser_provider": parsed.provider,
                 "parser_confidence": parsed.confidence,
+                "ocr_provider": demo_ocr.provider,
+                "ocr_confidence": demo_ocr.confidence,
                 "ssim_score": change.ssim_score,
                 "changed_pixel_ratio": change.change_ratio,
                 "route": route.to_dict(),
@@ -590,6 +616,7 @@ class DemoAnalyzerPipeline:
                 "processor_used": "webui_pipeline",
                 "rfdetr_ran": reran_macro,
                 "omniparser_ran": omniparser_ran,
+                "ocr_ran": True,
                 "crop_bbox": [list(item) for item in reparsed_regions],
                 "change_type": change.change_type,
                 "stage_timings_ms": stage_timings,
@@ -945,6 +972,8 @@ class DemoAnalyzerPipeline:
             for item in elements
             if item.visible
             and not item.occluded
+            and item.interactive
+            and not _is_ocr_element(item)
             and item.bbox[0] <= frame_w * 0.12
             and item.bbox[2] <= frame_w * 0.36
             and (item.bbox[2] - item.bbox[0]) <= max(80, int(frame_w * 0.30))
@@ -994,6 +1023,23 @@ class DemoAnalyzerPipeline:
             return self.ocr_extractor.extract_full(frame_bgr, frame_type=mode)
         except Exception as exc:
             logger.warning("OCR failed for mode=%s frame=%s: %s", mode, self._frame_id, exc)
+            return OCRResult(text="", lines=[], provider="ocr_failed", confidence=0.0)
+
+    def _safe_extract_ocr_regions(self, frame_bgr: np.ndarray, regions: Sequence[BBox], mode: str) -> OCRResult:
+        try:
+            extract_regions = getattr(self.ocr_extractor, "extract_regions", None)
+            if callable(extract_regions):
+                return extract_regions(frame_bgr, regions, frame_type=mode)
+            full = self.ocr_extractor.extract_full(frame_bgr, frame_type=mode)
+            relevant_lines = _ocr_lines_for_regions(full.lines, regions)
+            return OCRResult(
+                text="\n".join(str(item.get("text", "")).strip() for item in relevant_lines if str(item.get("text", "")).strip()),
+                lines=relevant_lines,
+                provider=full.provider,
+                confidence=full.confidence,
+            )
+        except Exception as exc:
+            logger.warning("Region OCR failed for mode=%s frame=%s: %s", mode, self._frame_id, exc)
             return OCRResult(text="", lines=[], provider="ocr_failed", confidence=0.0)
 
     def _ocr_elements_for_regions(
@@ -1076,34 +1122,23 @@ class DemoAnalyzerPipeline:
         elements: Sequence[UIElement],
         overlays: Sequence[Any],
         cursor_target: Dict[str, Any],
+        screen_structure: Optional[Dict[str, Any]] = None,
     ) -> str:
-        region_labels = [
-            group.label.replace("_", " ")
-            for group in layout_groups
-            if str(group.label or "").strip()
-        ]
-        region_desc = ", ".join(dict.fromkeys(region_labels[:4])) if region_labels else "an application interface"
-        highlight_candidates = []
-        for item in elements:
-            if not item.interactive and not (item.text or item.caption):
-                continue
-            highlight_candidates.append(
-                {
-                    "text": item.text,
-                    "caption": item.caption,
-                    "type": item.type,
-                }
-            )
-        highlights = ", ".join(_collect_micro_highlights(highlight_candidates, limit=5))
-        summary = f"The screen shows {region_desc}."
+        structure = screen_structure or _build_demo_screen_structure(layout_groups, elements)
+        layout_desc = str(structure.get("layout_description") or "a single content area")
+        inferred = str(structure.get("interface_type") or "application interface")
+        region_details = [str(item) for item in structure.get("region_descriptions", []) if str(item).strip()]
+        highlights = ", ".join(str(item) for item in structure.get("highlights", [])[:5])
+        summary = f"The screen appears to be {inferred} with {layout_desc}."
+        if region_details:
+            summary += " " + " ".join(region_details[:3])
         if overlays:
             summary += f" An overlay is visible ({overlays[0].type})."
         if highlights:
             summary += f" Visible controls include {highlights}."
-        if cursor_target.get("element_text"):
-            summary += f" The cursor is hovering near {cursor_target['element_text']}."
-        elif cursor_target.get("parent_macro_region_type"):
-            summary += f" The cursor is inside the {cursor_target['parent_macro_region_type'].replace('_', ' ')}."
+        cursor_sentence = _cursor_action_text(cursor_target, "")
+        if cursor_sentence:
+            summary += " " + cursor_sentence
         return summary.strip()
 
     def _select_transcript_window(self, *, timestamp_sec: float, force: bool) -> List[TranscriptSegment]:
@@ -1180,7 +1215,12 @@ class DemoAnalyzerPipeline:
                 heuristic_summary=heuristic,
                 transcript_text=transcript_text,
                 cursor_text=self._cursor_summary_text(state.cursor, state.visual_payload.get("cursor_target")),
-                page_text=str(state.visual_payload.get("page_summary", "") or "")[:500],
+                page_text=_join_summary_parts(
+                    [
+                        str(state.visual_payload.get("page_summary", "") or ""),
+                        str(state.visual_payload.get("ocr_text", "") or ""),
+                    ]
+                )[:700],
                 action_text=self._action_summary_text(state),
             )
         heuristic = _join_summary_parts([
@@ -1244,7 +1284,12 @@ class DemoAnalyzerPipeline:
         if state.mode == "slide":
             return str(state.visual_payload.get("full_text", "") or "")[:300]
         if state.mode == "demo":
-            return str(state.visual_payload.get("page_summary", "") or "")[:300]
+            return _join_summary_parts(
+                [
+                    str(state.visual_payload.get("page_summary", "") or ""),
+                    str(state.visual_payload.get("ocr_text", "") or ""),
+                ]
+            )[:450]
         return str(state.visual_payload.get("summary", "") or "")[:200]
 
     def _action_summary_text(self, state: ScreenState) -> str:
@@ -1502,6 +1547,298 @@ def _elements_from_slide(slide: SlideAnalysis, *, frame_id: int, timestamp_sec: 
             )
         )
     return elements
+
+
+def _build_demo_screen_structure(layout_groups: Sequence[LayoutGroup], elements: Sequence[UIElement]) -> Dict[str, Any]:
+    ordered_groups = sorted(layout_groups, key=lambda item: (item.bbox[1], item.bbox[0], item.z_index, item.id))
+    group_by_id = {group.id: group for group in ordered_groups}
+    by_region: Dict[str, List[UIElement]] = {group.id: [] for group in ordered_groups}
+    for element in sorted(elements, key=_reading_order_key):
+        parent = group_by_id.get(str(element.parent_macro_region_id or ""))
+        if parent is None:
+            parent = _best_parent_group(element.bbox, ordered_groups)
+        if parent is not None:
+            by_region.setdefault(parent.id, []).append(element)
+
+    labels = [_human_region_label(group.label) for group in ordered_groups]
+    unique_labels = list(dict.fromkeys(label for label in labels if label))
+    layout_description = ", ".join(unique_labels[:5]) if unique_labels else "one main content area"
+    highlights = _collect_element_highlights(elements, limit=6)
+    interface_type = _infer_interface_type(elements, ordered_groups, by_region)
+    region_descriptions: List[str] = []
+    regions: List[Dict[str, Any]] = []
+    flat_reading_order: List[Dict[str, Any]] = []
+
+    for group in ordered_groups:
+        region_elements = sorted(by_region.get(group.id, []), key=_reading_order_key)
+        children = _build_nested_reading_nodes(region_elements)
+        description = _describe_region(group, region_elements)
+        if description:
+            region_descriptions.append(description)
+        flat_reading_order.extend(
+            {
+                "region_id": group.id,
+                "region_type": group.label,
+                "id": node.get("id"),
+                "kind": node.get("kind"),
+                "type": node.get("type"),
+                "text": node.get("text") or node.get("ocr_text"),
+                "bbox": node.get("bbox"),
+            }
+            for node in children
+        )
+        regions.append(
+            {
+                "id": group.id,
+                "type": group.label,
+                "label": _human_region_label(group.label),
+                "bbox": list(group.bbox),
+                "element_count": len(region_elements),
+                "ocr_line_count": sum(1 for item in region_elements if _is_ocr_element(item)),
+                "element_types": dict(Counter(_normal_element_type(item) for item in region_elements).most_common(6)),
+                "sample_text": _collect_element_highlights(region_elements, limit=4),
+                "children": children,
+            }
+        )
+
+    return {
+        "interface_type": interface_type,
+        "layout_description": layout_description,
+        "regions": regions,
+        "reading_order": flat_reading_order,
+        "region_descriptions": region_descriptions,
+        "highlights": highlights,
+    }
+
+
+def _build_nested_reading_nodes(elements: Sequence[UIElement]) -> List[Dict[str, Any]]:
+    ocr_items = [item for item in elements if _is_ocr_element(item)]
+    ui_items = [item for item in elements if not _is_ocr_element(item)]
+    attached_ui: set[str] = set()
+    attached_ocr: set[str] = set()
+    ocr_parent_nodes: Dict[str, Dict[str, Any]] = {}
+    top_nodes: List[Dict[str, Any]] = []
+
+    for element in sorted(ui_items, key=_reading_order_key):
+        match = _best_ocr_match(element, ocr_items)
+        if match is None:
+            continue
+        if _bbox_contains(match.bbox, element.bbox, 0.08) or _intersection_ratio(element.bbox, match.bbox) >= 0.65:
+            node = ocr_parent_nodes.setdefault(match.id, _element_structure_node(match, kind="ocr_text"))
+            node.setdefault("children", []).append(_element_structure_node(element, kind="ui_element"))
+            attached_ui.add(element.id)
+            attached_ocr.add(match.id)
+        elif _bbox_contains(element.bbox, match.bbox, 0.08) or _intersection_ratio(match.bbox, element.bbox) >= 0.65:
+            node = _element_structure_node(element, kind="ui_element")
+            node["children"] = [_element_structure_node(match, kind="ocr_text")]
+            top_nodes.append(node)
+            attached_ui.add(element.id)
+            attached_ocr.add(match.id)
+        elif _intersection_ratio(element.bbox, match.bbox) >= 0.25 or _intersection_ratio(match.bbox, element.bbox) >= 0.25:
+            node = _element_structure_node(element, kind="ui_element")
+            node["ocr_text"] = match.text
+            node["sources"] = sorted({element.source, match.source})
+            top_nodes.append(node)
+            attached_ui.add(element.id)
+            attached_ocr.add(match.id)
+
+    top_nodes.extend(ocr_parent_nodes.values())
+    for element in ui_items:
+        if element.id not in attached_ui:
+            top_nodes.append(_element_structure_node(element, kind="ui_element"))
+    for element in ocr_items:
+        if element.id not in attached_ocr:
+            top_nodes.append(_element_structure_node(element, kind="ocr_text"))
+
+    for node in top_nodes:
+        node["children"] = sorted(node.get("children", []), key=lambda item: (item["bbox"][1], item["bbox"][0], item["id"]))
+    return sorted(top_nodes, key=lambda item: (item["bbox"][1], item["bbox"][0], item["id"]))
+
+
+def _best_ocr_match(element: UIElement, ocr_items: Sequence[UIElement]) -> Optional[UIElement]:
+    candidates: List[Tuple[float, float, UIElement]] = []
+    for ocr in ocr_items:
+        if not bbox_intersects(element.bbox, ocr.bbox, padding=3):
+            continue
+        overlap = max(_intersection_ratio(element.bbox, ocr.bbox), _intersection_ratio(ocr.bbox, element.bbox))
+        containment_bonus = 0.25 if _bbox_contains(ocr.bbox, element.bbox, 0.08) or _bbox_contains(element.bbox, ocr.bbox, 0.08) else 0.0
+        candidates.append((overlap + containment_bonus, abs(bbox_area(element.bbox) - bbox_area(ocr.bbox)), ocr))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], item[1], item[2].id))
+    return candidates[0][2]
+
+
+def _element_structure_node(element: UIElement, *, kind: str) -> Dict[str, Any]:
+    text = re.sub(r"\s+", " ", str(element.text or element.caption or "").strip())
+    return {
+        "id": element.id,
+        "kind": kind,
+        "type": element.type,
+        "bbox": list(element.bbox),
+        "text": text,
+        "interactive": bool(element.interactive),
+        "confidence": float(element.confidence),
+        "source": element.source,
+        "children": [],
+    }
+
+
+def _infer_interface_type(
+    elements: Sequence[UIElement],
+    layout_groups: Sequence[LayoutGroup],
+    by_region: Dict[str, List[UIElement]],
+) -> str:
+    all_text = " ".join((item.text or item.caption or item.type or "") for item in elements).lower()
+    type_counts = Counter(_normal_element_type(item) for item in elements)
+    labels = {str(group.label or "") for group in layout_groups}
+    main_elements: List[UIElement] = []
+    for group in layout_groups:
+        if group.label in {"main_content", "content", "content_panel", "form_region"}:
+            main_elements.extend(by_region.get(group.id, []))
+    main_type_counts = Counter(_normal_element_type(item) for item in main_elements)
+    input_count = type_counts["input"] + type_counts["textbox"] + type_counts["textfield"]
+    main_input_count = main_type_counts["input"] + main_type_counts["textbox"] + main_type_counts["textfield"]
+
+    if any(term in all_text for term in ("chat", "message", "prompt", "send", "assistant", "bot")) and input_count:
+        return "a chatbot or messaging interface"
+    if main_input_count >= 2 and (type_counts["button"] or "send" in all_text):
+        return "a form-heavy or chatbot-style workspace"
+    if type_counts["table"] or any(term in all_text for term in ("row", "column", "filter", "sort", "export")):
+        return "a dashboard or data table"
+    if any(term in all_text for term in ("def ", "class ", "import ", "return ", "const ", "function ", "{", "}")):
+        return "a code or notebook workspace"
+    if {"left_sidebar", "right_sidebar"} & labels and type_counts["button"] >= 3:
+        return "a structured web application"
+    return "an application interface"
+
+
+def _describe_region(group: LayoutGroup, elements: Sequence[UIElement]) -> str:
+    label = _human_region_label(group.label)
+    if not elements:
+        return f"The {label} is present but has no readable controls."
+    counts = Counter(_normal_element_type(item) for item in elements)
+    highlights = _collect_element_highlights(elements, limit=3)
+    count_text = ", ".join(f"{count} {kind}" for kind, count in counts.most_common(3) if kind)
+    text = f"The {label} contains {count_text or str(len(elements)) + ' elements'}"
+    if highlights:
+        text += f", including {', '.join(highlights)}"
+    return text + "."
+
+
+def _collect_element_highlights(elements: Sequence[UIElement], limit: int = 5) -> List[str]:
+    highlights: List[str] = []
+    seen: set[str] = set()
+    for item in sorted(elements, key=_reading_order_key):
+        text = str(item.text or item.caption or "").strip()
+        if not text and item.interactive:
+            text = _human_region_label(item.type)
+        text = re.sub(r"\s+", " ", text).strip(" -:\n\t")
+        if not text or len(text) > 80 or _looks_like_noise(text):
+            continue
+        normalized = text.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        highlights.append(text)
+        if len(highlights) >= limit:
+            break
+    return highlights
+
+
+def _reading_text_from_elements(elements: Sequence[UIElement], *, source_prefix: str) -> str:
+    prefix = source_prefix.lower()
+    lines = [
+        re.sub(r"\s+", " ", str(item.text or "").strip())
+        for item in sorted(elements, key=_reading_order_key)
+        if str(item.source or "").lower().startswith(prefix) and str(item.text or "").strip()
+    ]
+    deduped = list(dict.fromkeys(line for line in lines if line and not _looks_like_noise(line)))
+    return "\n".join(deduped)
+
+
+def _ocr_lines_from_elements(elements: Sequence[UIElement]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "text": item.text,
+            "box": list(item.bbox),
+            "confidence": item.confidence,
+            "source": item.source,
+        }
+        for item in sorted(elements, key=_reading_order_key)
+        if _is_ocr_element(item) and str(item.text or "").strip()
+    ]
+
+
+def _normal_element_type(item: UIElement) -> str:
+    raw = str(item.type or "").strip().lower().replace("-", "_")
+    text = str(item.text or item.caption or "").strip().lower()
+    if raw in {"input", "input_box", "text_input", "textfield", "textbox"}:
+        return "input"
+    if raw in {"icon_button", "button"} or (item.interactive and any(term in text for term in ("submit", "save", "send", "next", "back"))):
+        return "button"
+    if raw in {"text", "label", "paragraph"}:
+        return "ocr_text" if _is_ocr_element(item) else "text"
+    if raw in {"table", "grid"}:
+        return "table"
+    if raw in {"select", "dropdown", "combobox"}:
+        return "dropdown"
+    return raw or "element"
+
+
+def _human_region_label(value: str) -> str:
+    text = str(value or "").replace("_", " ").strip()
+    aliases = {
+        "main content": "main content area",
+        "left sidebar": "left sidebar",
+        "right sidebar": "right side panel",
+        "top navbar": "top navigation",
+    }
+    return aliases.get(text, text)
+
+
+def _cursor_action_text(cursor_target: Dict[str, Any], change_type: str) -> str:
+    if not isinstance(cursor_target, dict):
+        return ""
+    target = str(cursor_target.get("element_text") or cursor_target.get("element_type") or "").strip()
+    region = str(cursor_target.get("parent_macro_region_type") or "").replace("_", " ").strip()
+    relation = str(cursor_target.get("relation") or "").replace("_", " ").strip()
+    change = str(change_type or "").replace("_", " ").strip()
+    if target:
+        if relation in {"hovering over", "focused on"}:
+            sentence = f"The cursor is {relation} {target}"
+        elif relation:
+            sentence = f"The cursor is {relation} on {target}"
+        else:
+            sentence = f"The cursor is focused on {target}"
+        if region:
+            sentence += f" in the {region}"
+    elif region:
+        sentence = f"The cursor is inside the {region}"
+    else:
+        return ""
+    if change and change not in {"none", "initial"}:
+        sentence += f" while a {change} is detected"
+    return sentence + "."
+
+
+def _is_ocr_element(item: UIElement) -> bool:
+    source = str(item.source or "").lower()
+    return source.startswith("ocr") or str(item.id or "").startswith("demo_ocr")
+
+
+def _reading_order_key(item: UIElement) -> Tuple[int, int, str]:
+    x1, y1, _, _ = item.bbox
+    return int(y1), int(x1), str(item.id)
+
+
+def _intersection_ratio(inner: BBox, outer: BBox) -> float:
+    ix1 = max(int(inner[0]), int(outer[0]))
+    iy1 = max(int(inner[1]), int(outer[1]))
+    ix2 = min(int(inner[2]), int(outer[2]))
+    iy2 = min(int(inner[3]), int(outer[3]))
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    return float(inter / max(1, bbox_area(inner)))
 
 
 def _serialize_layout_group(group: LayoutGroup) -> Dict[str, Any]:

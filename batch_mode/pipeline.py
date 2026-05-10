@@ -531,12 +531,21 @@ class DemoAnalyzerPipeline:
             omniparser_ran = True
             omniparser_cache_hit = str(parsed.provider).startswith("cache:")
 
-            for element in parsed.elements:
+            demo_ocr = self._safe_extract_ocr_regions(frame_bgr, reparsed_regions, "demo")
+            ocr_elements = _elements_from_ocr_lines(
+                demo_ocr.lines,
+                frame_id=self._frame_id,
+                timestamp_sec=timestamp_sec,
+                prefix="demo_ocr",
+            )
+            reparsed_elements = [*parsed.elements, *ocr_elements]
+
+            for element in reparsed_elements:
                 element.parent_macro_region_id = _parent_group_id_for_box(element.bbox, macro_layout)
                 element.timestamp = float(timestamp_sec)
             merged_state = merge_reparsed_state(
                 state=state,
-                reparsed_elements=parsed.elements,
+                reparsed_elements=reparsed_elements,
                 reparsed_overlays=parsed.overlays,
                 reparsed_regions=reparsed_regions,
                 frame_id=self._frame_id,
@@ -561,6 +570,9 @@ class DemoAnalyzerPipeline:
                 "change_type": change.change_type,
                 "macro_layout": [_serialize_layout_group(group) for group in merged_state.layout_groups],
                 "micro_elements": [_serialize_micro_element(item) for item in merged_state.elements],
+                "ocr_text": _reading_text_from_elements(merged_state.elements, source_prefix="ocr"),
+                "updated_ocr_text": demo_ocr.text,
+                "ocr_lines": _ocr_lines_from_elements(merged_state.elements),
                 "screen_structure": screen_structure,
                 "cursor": _cursor_payload(self.cache.cursor_state),
                 "cursor_target": cursor_target,
@@ -575,6 +587,8 @@ class DemoAnalyzerPipeline:
             merged_state.confidence = {
                 "parser_provider": parsed.provider,
                 "parser_confidence": parsed.confidence,
+                "ocr_provider": demo_ocr.provider,
+                "ocr_confidence": demo_ocr.confidence,
                 "ssim_score": change.ssim_score,
                 "changed_pixel_ratio": change.change_ratio,
                 "route": route.to_dict(),
@@ -585,6 +599,7 @@ class DemoAnalyzerPipeline:
                 "rfdetr_ran": reran_macro,
                 "macro_detector_ran": reran_macro,
                 "omniparser_ran": omniparser_ran,
+                "ocr_ran": True,
                 "omniparser_cache_hit": omniparser_cache_hit,
                 "crop_bbox": [list(item) for item in reparsed_regions],
                 "change_type": change.change_type,
@@ -1017,6 +1032,23 @@ class DemoAnalyzerPipeline:
             logger.warning("OCR failed for mode=%s frame=%s: %s", mode, self._frame_id, exc)
             return OCRResult(text="", lines=[], provider="ocr_failed", confidence=0.0)
 
+    def _safe_extract_ocr_regions(self, frame_bgr: np.ndarray, regions: Sequence[BBox], mode: str) -> OCRResult:
+        try:
+            extract_regions = getattr(self.ocr_extractor, "extract_regions", None)
+            if callable(extract_regions):
+                return extract_regions(frame_bgr, regions, frame_type=mode)
+            full = self.ocr_extractor.extract_full(frame_bgr, frame_type=mode)
+            relevant_lines = _ocr_lines_for_regions(full.lines, regions)
+            return OCRResult(
+                text="\n".join(str(item.get("text", "")).strip() for item in relevant_lines if str(item.get("text", "")).strip()),
+                lines=relevant_lines,
+                provider=full.provider,
+                confidence=full.confidence,
+            )
+        except Exception as exc:
+            logger.warning("Region OCR failed for mode=%s frame=%s: %s", mode, self._frame_id, exc)
+            return OCRResult(text="", lines=[], provider="ocr_failed", confidence=0.0)
+
     def _safe_analyze_slide(self, frame_bgr: np.ndarray) -> SlideAnalysis:
         try:
             return self.slide_analyzer.analyze(frame_bgr)
@@ -1347,6 +1379,19 @@ def _elements_from_ocr_lines(lines: Sequence[Dict[str, Any]], *, frame_id: int, 
     return elements
 
 
+def _ocr_lines_for_regions(lines: Sequence[Dict[str, Any]], regions: Sequence[BBox]) -> List[Dict[str, Any]]:
+    if not regions:
+        return list(lines or [])
+    filtered: List[Dict[str, Any]] = []
+    for line in lines or []:
+        box = tuple(int(v) for v in line.get("box", [0, 0, 0, 0])[:4])
+        if len(box) != 4 or box[2] <= box[0] or box[3] <= box[1]:
+            continue
+        if any(bbox_intersects(box, region, padding=4) for region in regions):
+            filtered.append(dict(line))
+    return filtered
+
+
 def _elements_from_slide(slide: SlideAnalysis, *, frame_id: int, timestamp_sec: float) -> List[UIElement]:
     elements: List[UIElement] = []
     for idx, block in enumerate(slide.layout, start=1):
@@ -1367,10 +1412,10 @@ def _elements_from_slide(slide: SlideAnalysis, *, frame_id: int, timestamp_sec: 
 
 
 def _build_demo_screen_structure(layout_groups: Sequence[LayoutGroup], elements: Sequence[UIElement]) -> Dict[str, Any]:
-    ordered_groups = sorted(layout_groups, key=lambda item: (item.z_index, item.bbox[1], item.bbox[0], item.id))
+    ordered_groups = sorted(layout_groups, key=lambda item: (item.bbox[1], item.bbox[0], item.z_index, item.id))
     group_by_id = {group.id: group for group in ordered_groups}
     by_region: Dict[str, List[UIElement]] = {group.id: [] for group in ordered_groups}
-    for element in elements:
+    for element in sorted(elements, key=_reading_order_key):
         parent = group_by_id.get(str(element.parent_macro_region_id or ""))
         if parent is None:
             parent = _best_parent_group(element.bbox, ordered_groups)
@@ -1383,28 +1428,121 @@ def _build_demo_screen_structure(layout_groups: Sequence[LayoutGroup], elements:
     highlights = _collect_element_highlights(elements, limit=6)
     interface_type = _infer_interface_type(elements, ordered_groups, by_region)
     region_descriptions: List[str] = []
+    regions: List[Dict[str, Any]] = []
+    flat_reading_order: List[Dict[str, Any]] = []
+
     for group in ordered_groups:
-        description = _describe_region(group, by_region.get(group.id, []))
+        region_elements = sorted(by_region.get(group.id, []), key=_reading_order_key)
+        children = _build_nested_reading_nodes(region_elements)
+        description = _describe_region(group, region_elements)
         if description:
             region_descriptions.append(description)
-
-    return {
-        "interface_type": interface_type,
-        "layout_description": layout_description,
-        "regions": [
+        flat_reading_order.extend(
+            {
+                "region_id": group.id,
+                "region_type": group.label,
+                "id": node.get("id"),
+                "kind": node.get("kind"),
+                "type": node.get("type"),
+                "text": node.get("text") or node.get("ocr_text"),
+                "bbox": node.get("bbox"),
+            }
+            for node in children
+        )
+        regions.append(
             {
                 "id": group.id,
                 "type": group.label,
                 "label": _human_region_label(group.label),
                 "bbox": list(group.bbox),
-                "element_count": len(by_region.get(group.id, [])),
-                "element_types": dict(Counter(_normal_element_type(item) for item in by_region.get(group.id, [])).most_common(6)),
-                "sample_text": _collect_element_highlights(by_region.get(group.id, []), limit=4),
+                "element_count": len(region_elements),
+                "ocr_line_count": sum(1 for item in region_elements if _is_ocr_element(item)),
+                "element_types": dict(Counter(_normal_element_type(item) for item in region_elements).most_common(6)),
+                "sample_text": _collect_element_highlights(region_elements, limit=4),
+                "children": children,
             }
-            for group in ordered_groups
-        ],
+        )
+
+    return {
+        "interface_type": interface_type,
+        "layout_description": layout_description,
+        "regions": regions,
+        "reading_order": flat_reading_order,
         "region_descriptions": region_descriptions,
         "highlights": highlights,
+    }
+
+
+def _build_nested_reading_nodes(elements: Sequence[UIElement]) -> List[Dict[str, Any]]:
+    ocr_items = [item for item in elements if _is_ocr_element(item)]
+    ui_items = [item for item in elements if not _is_ocr_element(item)]
+    attached_ui: set[str] = set()
+    attached_ocr: set[str] = set()
+    ocr_parent_nodes: Dict[str, Dict[str, Any]] = {}
+    top_nodes: List[Dict[str, Any]] = []
+
+    for element in sorted(ui_items, key=_reading_order_key):
+        match = _best_ocr_match(element, ocr_items)
+        if match is None:
+            continue
+        if _bbox_contains(match.bbox, element.bbox, 0.08) or _intersection_ratio(element.bbox, match.bbox) >= 0.65:
+            node = ocr_parent_nodes.setdefault(match.id, _element_structure_node(match, kind="ocr_text"))
+            node.setdefault("children", []).append(_element_structure_node(element, kind="ui_element"))
+            attached_ui.add(element.id)
+            attached_ocr.add(match.id)
+        elif _bbox_contains(element.bbox, match.bbox, 0.08) or _intersection_ratio(match.bbox, element.bbox) >= 0.65:
+            node = _element_structure_node(element, kind="ui_element")
+            node["children"] = [_element_structure_node(match, kind="ocr_text")]
+            top_nodes.append(node)
+            attached_ui.add(element.id)
+            attached_ocr.add(match.id)
+        elif _intersection_ratio(element.bbox, match.bbox) >= 0.25 or _intersection_ratio(match.bbox, element.bbox) >= 0.25:
+            node = _element_structure_node(element, kind="ui_element")
+            node["ocr_text"] = match.text
+            node["sources"] = sorted({element.source, match.source})
+            top_nodes.append(node)
+            attached_ui.add(element.id)
+            attached_ocr.add(match.id)
+
+    top_nodes.extend(ocr_parent_nodes.values())
+    for element in ui_items:
+        if element.id not in attached_ui:
+            top_nodes.append(_element_structure_node(element, kind="ui_element"))
+    for element in ocr_items:
+        if element.id not in attached_ocr:
+            top_nodes.append(_element_structure_node(element, kind="ocr_text"))
+
+    for node in top_nodes:
+        node["children"] = sorted(node.get("children", []), key=lambda item: (item["bbox"][1], item["bbox"][0], item["id"]))
+    return sorted(top_nodes, key=lambda item: (item["bbox"][1], item["bbox"][0], item["id"]))
+
+
+def _best_ocr_match(element: UIElement, ocr_items: Sequence[UIElement]) -> Optional[UIElement]:
+    candidates: List[Tuple[float, int, UIElement]] = []
+    for ocr in ocr_items:
+        if not bbox_intersects(element.bbox, ocr.bbox, padding=3):
+            continue
+        overlap = max(_intersection_ratio(element.bbox, ocr.bbox), _intersection_ratio(ocr.bbox, element.bbox))
+        containment_bonus = 0.25 if _bbox_contains(ocr.bbox, element.bbox, 0.08) or _bbox_contains(element.bbox, ocr.bbox, 0.08) else 0.0
+        candidates.append((overlap + containment_bonus, abs(bbox_area(element.bbox) - bbox_area(ocr.bbox)), ocr))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (-item[0], item[1], item[2].id))
+    return candidates[0][2]
+
+
+def _element_structure_node(element: UIElement, *, kind: str) -> Dict[str, Any]:
+    text = re.sub(r"\s+", " ", str(element.text or element.caption or "").strip())
+    return {
+        "id": element.id,
+        "kind": kind,
+        "type": element.type,
+        "bbox": list(element.bbox),
+        "text": text,
+        "interactive": bool(element.interactive),
+        "confidence": float(element.confidence),
+        "source": element.source,
+        "children": [],
     }
 
 
@@ -1453,7 +1591,7 @@ def _describe_region(group: LayoutGroup, elements: Sequence[UIElement]) -> str:
 def _collect_element_highlights(elements: Sequence[UIElement], limit: int = 5) -> List[str]:
     highlights: List[str] = []
     seen: set[str] = set()
-    for item in elements:
+    for item in sorted(elements, key=_reading_order_key):
         text = str(item.text or item.caption or "").strip()
         if not text and item.interactive:
             text = _human_region_label(item.type)
@@ -1470,6 +1608,30 @@ def _collect_element_highlights(elements: Sequence[UIElement], limit: int = 5) -
     return highlights
 
 
+def _reading_text_from_elements(elements: Sequence[UIElement], *, source_prefix: str) -> str:
+    prefix = source_prefix.lower()
+    lines = [
+        re.sub(r"\s+", " ", str(item.text or "").strip())
+        for item in sorted(elements, key=_reading_order_key)
+        if str(item.source or "").lower().startswith(prefix) and str(item.text or "").strip()
+    ]
+    deduped = list(dict.fromkeys(line for line in lines if line))
+    return "\n".join(deduped)
+
+
+def _ocr_lines_from_elements(elements: Sequence[UIElement]) -> List[Dict[str, Any]]:
+    return [
+        {
+            "text": item.text,
+            "box": list(item.bbox),
+            "confidence": item.confidence,
+            "source": item.source,
+        }
+        for item in sorted(elements, key=_reading_order_key)
+        if _is_ocr_element(item) and str(item.text or "").strip()
+    ]
+
+
 def _normal_element_type(item: UIElement) -> str:
     raw = str(item.type or "").strip().lower().replace("-", "_")
     text = str(item.text or item.caption or "").strip().lower()
@@ -1478,12 +1640,31 @@ def _normal_element_type(item: UIElement) -> str:
     if raw in {"icon_button", "button"} or (item.interactive and any(term in text for term in ("submit", "save", "send", "next", "back"))):
         return "button"
     if raw in {"text", "label", "paragraph"}:
-        return "text"
+        return "ocr_text" if _is_ocr_element(item) else "text"
     if raw in {"table", "grid"}:
         return "table"
     if raw in {"select", "dropdown", "combobox"}:
         return "dropdown"
     return raw or "element"
+
+
+def _is_ocr_element(item: UIElement) -> bool:
+    source = str(item.source or "").lower()
+    return source.startswith("ocr") or str(item.id or "").startswith("demo_ocr")
+
+
+def _reading_order_key(item: UIElement) -> Tuple[int, int, str]:
+    x1, y1, _, _ = item.bbox
+    return int(y1), int(x1), str(item.id)
+
+
+def _intersection_ratio(inner: BBox, outer: BBox) -> float:
+    ix1 = max(int(inner[0]), int(outer[0]))
+    iy1 = max(int(inner[1]), int(outer[1]))
+    ix2 = min(int(inner[2]), int(outer[2]))
+    iy2 = min(int(inner[3]), int(outer[3]))
+    inter = max(0, ix2 - ix1) * max(0, iy2 - iy1)
+    return float(inter / max(1, bbox_area(inner)))
 
 
 def _human_region_label(value: str) -> str:

@@ -49,6 +49,7 @@ class FakeCursorAnalyzer:
 class FakeOCR:
     def __init__(self):
         self.calls = 0
+        self.region_calls = []
 
     def extract_full(self, frame_bgr, *, frame_type):
         self.calls += 1
@@ -67,6 +68,23 @@ class FakeOCR:
             ],
             provider="fakeocr",
             confidence=0.9,
+        )
+
+    def extract_regions(self, frame_bgr, regions, *, frame_type):
+        self.region_calls.append(list(regions))
+        marker = int(frame_bgr[0, 0, 0])
+        if marker == 30:
+            lines = [
+                {"text": "Search orders", "box": [24, 70, 150, 94], "confidence": 0.93, "source": "ocr:rapidocr"},
+                {"text": "Save", "box": [24, 108, 88, 132], "confidence": 0.91, "source": "ocr:rapidocr"},
+            ]
+        else:
+            lines = []
+        return OCRResult(
+            text="\n".join(line["text"] for line in lines),
+            lines=lines,
+            provider="ocr:rapidocr",
+            confidence=0.92 if lines else 0.0,
         )
 
 
@@ -222,6 +240,21 @@ class PipelineModesTests(unittest.TestCase):
         self.assertFalse(second.debug["rfdetr_ran"])
         self.assertTrue(second.debug["omniparser_ran"])
         self.assertTrue(second.debug["crop_bbox"])
+
+    def test_demo_ocr_is_structured_with_omniparser_elements(self):
+        pipeline, _ = self.make_pipeline()
+        record = pipeline.ingest_frame(frame(30, patch=(120, 90, 150, 120, 60)), timestamp_sec=0.0)
+
+        self.assertEqual(record.mode, "demo")
+        self.assertTrue(record.debug["ocr_ran"])
+        self.assertIn("Search orders", record.visual_payload["ocr_text"])
+        self.assertEqual(record.confidence["ocr_provider"], "ocr:rapidocr")
+        structure = record.visual_payload["screen_structure"]
+        self.assertTrue(structure["reading_order"])
+        main_region = next(item for item in structure["regions"] if item["type"] == "main_content")
+        self.assertGreaterEqual(main_region["ocr_line_count"], 1)
+        nested_nodes = [node for node in main_region["children"] if node["kind"] in {"ocr_text", "ui_element"}]
+        self.assertTrue(nested_nodes)
 
     def test_cached_demo_frame_clears_heavy_stage_debug_flags(self):
         pipeline, _ = self.make_pipeline(cursor_boxes=[None, None])

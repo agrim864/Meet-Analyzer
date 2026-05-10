@@ -179,6 +179,7 @@ class BatchModeTests(unittest.TestCase):
             UIElement(id="input_1", type="input", bbox=(100, 700, 900, 760), text="Ask anything", interactive=True),
             UIElement(id="input_2", type="input", bbox=(100, 620, 900, 680), text="Message", interactive=True),
             UIElement(id="send", type="button", bbox=(920, 700, 1000, 760), text="Send", interactive=True),
+            UIElement(id="demo_ocr_text_0001", type="text", bbox=(94, 694, 910, 766), text="Ask anything", source="ocr:rapidocr"),
         ]
         structure = _build_demo_screen_structure(groups, elements)
         summary = DemoAnalyzerPipeline.__new__(DemoAnalyzerPipeline)._build_demo_page_summary(
@@ -192,6 +193,9 @@ class BatchModeTests(unittest.TestCase):
         self.assertIn("chatbot", summary.lower())
         self.assertIn("main content area contains", summary.lower())
         self.assertIn("cursor", summary.lower())
+        self.assertEqual(structure["regions"][0]["ocr_line_count"], 1)
+        ocr_parent = next(node for node in structure["regions"][0]["children"] if node["id"] == "demo_ocr_text_0001")
+        self.assertTrue(any(child["id"] == "input_1" for child in ocr_parent["children"]))
 
     def test_omniparser_region_parse_rebases_bottom_screen_elements(self) -> None:
         class FakeParserClient:

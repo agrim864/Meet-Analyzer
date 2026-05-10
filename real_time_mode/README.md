@@ -97,7 +97,7 @@ Micro metrics:
 | Mode router | SigLIP/SigLIP2 prompt bank and sticky routing | Chooses demo, slide, code, or other |
 | Macro segmentation | yolo-ui detector plus geometry guards | Finds header, sidebar, and main content without over-labeling sidebars |
 | Micro parsing | OmniParser v2 icon detector/caption stack | Extracts controls, icons, text regions, and visible UI boxes |
-| OCR | EasyOCR, RapidOCR, optional PaddleOCR path | Reads slide, code, and UI text |
+| OCR | RapidOCR by default, EasyOCR for GPU quality, optional PaddleOCR path | Reads slide, code, and live UI text with low-latency CPU fallback |
 | Slide adapter | OCR-derived layout in real-time; compatible with the batch Surya contract | Emits slide title, layout blocks, reading order, and fingerprints |
 | Cursor | YOLO cursor model plus fallback logic | Tracks pointer hotspot and target element |
 | Change detector | SSIM and changed-pixel regions | Reuses cache and reparses changed crops |
@@ -106,6 +106,16 @@ Micro metrics:
 | Remote GPU | Modal app | Moves heavier parsing away from the local frontend host |
 
 Note on Surya: batch mode includes the full Surya layout/OCR predictor path. Real-time mode keeps the same slide-analysis contract but favors a lighter OCR-derived layout path for live latency unless the analyzer is extended with the heavier predictors.
+
+## Demo-Mode Structure
+
+Demo frames now emit a research-friendly `screen_structure` payload. The pipeline first detects macro regions, then reads each changed crop with OmniParser and RapidOCR. Within each macro region, nodes are sorted top-to-bottom and left-to-right. If an OmniParser element sits inside an OCR text box, it becomes a child of that OCR node; if OCR sits inside a UI element, the OCR node is attached under that UI element. This keeps visible text and controls together instead of forcing downstream agents to reconcile two flat lists.
+
+The live crop policy is:
+
+1. Detect visual change after cursor masking.
+2. If the change is contained inside existing macro regions, rerun OmniParser and OCR only on those changed regions.
+3. If region boundaries change, the page layout is refreshed and OmniParser/OCR run across the full screen.
 
 ## Setup
 
@@ -130,7 +140,7 @@ Copy-Item real_time_mode\.env.example real_time_mode\.env
 Recommended live defaults:
 
 ```env
-OCR_MODE=gpu
+OCR_MODE=cpu
 OCR_BACKEND_GPU=easyocr
 OCR_BACKEND_CPU=rapidocr
 OMNIPARSER_IMGSZ=512
