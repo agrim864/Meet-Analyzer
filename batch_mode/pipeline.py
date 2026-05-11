@@ -4,6 +4,7 @@ import logging
 import hashlib
 import re
 from collections import Counter, OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from difflib import ndiff
 from pathlib import Path
@@ -15,6 +16,7 @@ import numpy as np
 from skimage.metrics import structural_similarity
 
 from .cursor_adapter import CursorMotionAnalyzer
+from .doclayout_adapter import DocLayoutPayload, DocLayoutYOLOAdapter
 from .export import export_scene_record
 from .macro_layout import MacroLayoutDetector
 from .merge import merge_reparsed_state
@@ -168,6 +170,7 @@ class DemoAnalyzerPipeline:
         omniparser: Optional[OmniParserAdapter] = None,
         cursor_analyzer: Optional[CursorMotionAnalyzer] = None,
         macro_layout_detector: Optional[MacroLayoutDetector] = None,
+        doclayout_detector: Optional[DocLayoutYOLOAdapter] = None,
         ocr_extractor: Optional[OCRTextExtractor] = None,
         slide_analyzer: Optional[SuryaSlideAnalyzer] = None,
         mode_router: Optional[ModeRouter] = None,
@@ -195,6 +198,7 @@ class DemoAnalyzerPipeline:
         self.cursor_analyzer = cursor_analyzer or CursorMotionAnalyzer()
         default_macro_weights = Path(__file__).resolve().parent.parent / "real_time_mode" / "vendor" / "uitag" / "yolo-ui.pt"
         self.macro_layout = macro_layout_detector or MacroLayoutDetector(str(default_macro_weights))
+        self.doclayout = doclayout_detector or DocLayoutYOLOAdapter(enabled=False)
         self.ocr_extractor = ocr_extractor or OCRTextExtractor()
         self.slide_analyzer = slide_analyzer or SuryaSlideAnalyzer(self.ocr_extractor)
         self.router = mode_router or ModeRouter()
@@ -344,17 +348,27 @@ class DemoAnalyzerPipeline:
             )
         if first_frame or change.changed:
             ocr = self._safe_extract_ocr(frame_bgr, "code")
+            doclayout = self._safe_detect_doclayout_regions(
+                frame_bgr,
+                [(0, 0, viewport["width"], viewport["height"])],
+                "code",
+                timestamp_sec,
+            )
             ocr_diff = _diff_text(cache.prev_ocr_text, ocr.text)
             text_changed = bool(ocr_diff["added"] or ocr_diff["removed"])
             visual_change = first_frame or change.changed or text_changed
             changed_bbox = union_boxes(change.changed_regions) or (0, 0, viewport["width"], viewport["height"])
-            elements = _elements_from_ocr_lines(ocr.lines, frame_id=self._frame_id, timestamp_sec=timestamp_sec, prefix="code")
+            elements = [
+                *_elements_from_ocr_lines(ocr.lines, frame_id=self._frame_id, timestamp_sec=timestamp_sec, prefix="code"),
+                *doclayout.elements,
+            ]
             payload = {
                 "mode": "code",
                 "visual_change": visual_change,
                 "changed_bbox": list(changed_bbox),
                 "ocr_text": ocr.text,
                 "ocr_diff": ocr_diff,
+                "doclayout_elements": [_serialize_micro_element(item) for item in doclayout.elements],
                 "cursor": _cursor_payload(self.cache.cursor_state),
             }
             state = ScreenState(
@@ -377,12 +391,18 @@ class DemoAnalyzerPipeline:
                     reparsed_regions=[changed_bbox] if visual_change else [],
                     confidence=max(ocr.confidence, change.change_ratio),
                 ),
-                confidence={"ocr_provider": ocr.provider, "ocr_confidence": ocr.confidence},
+                confidence={
+                    "ocr_provider": ocr.provider,
+                    "ocr_confidence": ocr.confidence,
+                    "doclayout_provider": doclayout.provider,
+                    "doclayout_confidence": doclayout.confidence,
+                },
                 debug={
                     "change_score": change.change_ratio,
                     "processor_used": "ocr",
                     "rfdetr_ran": False,
                     "omniparser_ran": False,
+                    "doclayout_ran": bool(doclayout.elements),
                     "crop_bbox": list(changed_bbox),
                 },
             )
@@ -421,6 +441,12 @@ class DemoAnalyzerPipeline:
             )
         if first_frame or change.changed:
             slide = self._safe_analyze_slide(frame_bgr)
+            doclayout = self._safe_detect_doclayout_regions(
+                frame_bgr,
+                [(0, 0, viewport["width"], viewport["height"])],
+                "slide",
+                timestamp_sec,
+            )
             duplicate_slide = (not first_frame) and cache.prev_slide_fingerprint and cache.prev_slide_fingerprint == slide.fingerprint
             visual_change = first_frame or (change.changed and not duplicate_slide)
             payload = {
@@ -428,10 +454,11 @@ class DemoAnalyzerPipeline:
                 "visual_change": visual_change,
                 "slide_fingerprint": slide.fingerprint,
                 "layout": [block.to_dict() for block in slide.layout],
+                "doclayout_elements": [_serialize_micro_element(item) for item in doclayout.elements],
                 "full_text": slide.full_text,
                 "cursor": _cursor_payload(self.cache.cursor_state),
             }
-            elements = _elements_from_slide(slide, frame_id=self._frame_id, timestamp_sec=timestamp_sec)
+            elements = [*_elements_from_slide(slide, frame_id=self._frame_id, timestamp_sec=timestamp_sec), *doclayout.elements]
             state = ScreenState(
                 frame_id=self._frame_id,
                 timestamp_sec=float(timestamp_sec),
@@ -452,12 +479,18 @@ class DemoAnalyzerPipeline:
                     reparsed_regions=[(0, 0, viewport["width"], viewport["height"])] if visual_change else [],
                     confidence=max(slide.confidence, change.change_ratio),
                 ),
-                confidence={"slide_provider": slide.provider, "slide_confidence": slide.confidence},
+                confidence={
+                    "slide_provider": slide.provider,
+                    "slide_confidence": slide.confidence,
+                    "doclayout_provider": doclayout.provider,
+                    "doclayout_confidence": doclayout.confidence,
+                },
                 debug={
                     "change_score": change.change_ratio,
                     "processor_used": "surya",
                     "rfdetr_ran": False,
                     "omniparser_ran": False,
+                    "doclayout_ran": bool(doclayout.elements),
                     "duplicate_slide": duplicate_slide,
                 },
             )
@@ -527,18 +560,29 @@ class DemoAnalyzerPipeline:
             requires_full_parse = first_frame or any(bool(item.get("requires_full_parse")) for item in crop_plan)
             if requires_full_parse:
                 reparsed_regions = [(0, 0, frame_w, frame_h)]
-            parsed = self._parse_micro_regions(masked_frame, reparsed_regions)
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                parsed_future = executor.submit(self._parse_micro_regions, masked_frame, reparsed_regions)
+                ocr_future = executor.submit(self._safe_extract_ocr_regions, frame_bgr, reparsed_regions, "demo")
+                doclayout_future = executor.submit(
+                    self._safe_detect_doclayout_regions,
+                    frame_bgr,
+                    reparsed_regions,
+                    "demo",
+                    timestamp_sec,
+                )
+                parsed = parsed_future.result()
+                demo_ocr = ocr_future.result()
+                doclayout = doclayout_future.result()
             omniparser_ran = True
             omniparser_cache_hit = str(parsed.provider).startswith("cache:")
 
-            demo_ocr = self._safe_extract_ocr_regions(frame_bgr, reparsed_regions, "demo")
             ocr_elements = _elements_from_ocr_lines(
                 demo_ocr.lines,
                 frame_id=self._frame_id,
                 timestamp_sec=timestamp_sec,
                 prefix="demo_ocr",
             )
-            reparsed_elements = [*parsed.elements, *ocr_elements]
+            reparsed_elements = [*doclayout.elements, *parsed.elements, *ocr_elements]
 
             for element in reparsed_elements:
                 element.parent_macro_region_id = _parent_group_id_for_box(element.bbox, macro_layout)
@@ -555,7 +599,7 @@ class DemoAnalyzerPipeline:
             merged_state.frame_type = "demo"
             merged_state.cursor = self.cache.cursor_state.copy()
             cursor_target = self._match_cursor_target(self.cache.cursor_state, merged_state.elements, merged_state.layout_groups)
-            screen_structure = _build_demo_screen_structure(merged_state.layout_groups, merged_state.elements)
+            screen_structure = _build_demo_screen_structure(merged_state.layout_groups, merged_state.elements, cursor_target=cursor_target)
             page_summary = self._build_demo_page_summary(
                 merged_state.layout_groups,
                 merged_state.elements,
@@ -569,6 +613,7 @@ class DemoAnalyzerPipeline:
                 "visual_change": visual_change,
                 "change_type": change.change_type,
                 "macro_layout": [_serialize_layout_group(group) for group in merged_state.layout_groups],
+                "doclayout_elements": [_serialize_micro_element(item) for item in doclayout.elements],
                 "micro_elements": [_serialize_micro_element(item) for item in merged_state.elements],
                 "ocr_text": _reading_text_from_elements(merged_state.elements, source_prefix="ocr"),
                 "updated_ocr_text": demo_ocr.text,
@@ -587,6 +632,8 @@ class DemoAnalyzerPipeline:
             merged_state.confidence = {
                 "parser_provider": parsed.provider,
                 "parser_confidence": parsed.confidence,
+                "doclayout_provider": doclayout.provider,
+                "doclayout_confidence": doclayout.confidence,
                 "ocr_provider": demo_ocr.provider,
                 "ocr_confidence": demo_ocr.confidence,
                 "ssim_score": change.ssim_score,
@@ -599,6 +646,7 @@ class DemoAnalyzerPipeline:
                 "rfdetr_ran": reran_macro,
                 "macro_detector_ran": reran_macro,
                 "omniparser_ran": omniparser_ran,
+                "doclayout_ran": bool(doclayout.elements),
                 "ocr_ran": True,
                 "omniparser_cache_hit": omniparser_cache_hit,
                 "crop_bbox": [list(item) for item in reparsed_regions],
@@ -950,6 +998,24 @@ class DemoAnalyzerPipeline:
             group.frame_id = self._frame_id
             group.timestamp = float(timestamp_sec)
         return groups
+
+    def _safe_detect_doclayout_regions(
+        self,
+        frame_bgr: np.ndarray,
+        regions: Sequence[BBox],
+        mode: str,
+        timestamp_sec: float,
+    ) -> DocLayoutPayload:
+        try:
+            return self.doclayout.detect_regions(
+                frame_bgr,
+                regions,
+                frame_id=self._frame_id,
+                timestamp_sec=timestamp_sec,
+            )
+        except Exception as exc:
+            logger.warning("DocLayout-YOLO failed for mode=%s frame=%s: %s", mode, self._frame_id, exc)
+            return DocLayoutPayload(elements=[], provider=f"doclayout_failed:{type(exc).__name__}", confidence=0.0)
 
     def _parse_micro_regions(self, frame_masked: np.ndarray, regions: Sequence[BBox]) -> ParsePayload:
         cache_key = self._parse_cache_key(frame_masked, regions)
@@ -1411,7 +1477,11 @@ def _elements_from_slide(slide: SlideAnalysis, *, frame_id: int, timestamp_sec: 
     return elements
 
 
-def _build_demo_screen_structure(layout_groups: Sequence[LayoutGroup], elements: Sequence[UIElement]) -> Dict[str, Any]:
+def _build_demo_screen_structure(
+    layout_groups: Sequence[LayoutGroup],
+    elements: Sequence[UIElement],
+    cursor_target: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
     ordered_groups = sorted(layout_groups, key=lambda item: (item.bbox[1], item.bbox[0], item.z_index, item.id))
     group_by_id = {group.id: group for group in ordered_groups}
     by_region: Dict[str, List[UIElement]] = {group.id: [] for group in ordered_groups}
@@ -1434,6 +1504,7 @@ def _build_demo_screen_structure(layout_groups: Sequence[LayoutGroup], elements:
     for group in ordered_groups:
         region_elements = sorted(by_region.get(group.id, []), key=_reading_order_key)
         children = _build_nested_reading_nodes(region_elements)
+        hierarchy = _build_source_hierarchy(region_elements, cursor_target=cursor_target)
         description = _describe_region(group, region_elements)
         if description:
             region_descriptions.append(description)
@@ -1460,16 +1531,102 @@ def _build_demo_screen_structure(layout_groups: Sequence[LayoutGroup], elements:
                 "element_types": dict(Counter(_normal_element_type(item) for item in region_elements).most_common(6)),
                 "sample_text": _collect_element_highlights(region_elements, limit=4),
                 "children": children,
+                "hierarchy": hierarchy,
             }
         )
 
     return {
+        "hierarchy_rule": "macro_region > largest-containing DocLayout/OmniParser/OCR element > nested contained elements > cursor marker",
         "interface_type": interface_type,
         "layout_description": layout_description,
         "regions": regions,
         "reading_order": flat_reading_order,
         "region_descriptions": region_descriptions,
         "highlights": highlights,
+    }
+
+
+def _build_source_hierarchy(elements: Sequence[UIElement], cursor_target: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    ordered = sorted(elements, key=lambda item: (-bbox_area(item.bbox), item.bbox[1], item.bbox[0], item.id))
+    nodes: Dict[str, Dict[str, Any]] = {
+        element.id: _element_structure_node(element, kind=_source_kind(element))
+        for element in ordered
+        if element.id
+    }
+    parent_by_id: Dict[str, str] = {}
+    for child in ordered:
+        best_parent: Optional[UIElement] = None
+        best_parent_area = 0
+        child_area = bbox_area(child.bbox)
+        for candidate in ordered:
+            if candidate.id == child.id:
+                continue
+            candidate_area = bbox_area(candidate.bbox)
+            if candidate_area <= child_area:
+                continue
+            if not (_bbox_contains(candidate.bbox, child.bbox, 0.04) or _intersection_ratio(child.bbox, candidate.bbox) >= 0.82):
+                continue
+            if best_parent is None or candidate_area < best_parent_area:
+                best_parent = candidate
+                best_parent_area = candidate_area
+        if best_parent is not None:
+            parent_by_id[child.id] = best_parent.id
+
+    roots: List[Dict[str, Any]] = []
+    for element in sorted(ordered, key=_reading_order_key):
+        node = nodes.get(element.id)
+        if node is None:
+            continue
+        parent_id = parent_by_id.get(element.id)
+        parent = nodes.get(parent_id or "")
+        if parent is not None:
+            parent.setdefault("children", []).append(node)
+        else:
+            roots.append(node)
+
+    cursor_node = _cursor_hierarchy_node(cursor_target)
+    cursor_element_id = str((cursor_target or {}).get("element_id") or "")
+    if cursor_node and cursor_element_id and cursor_element_id in nodes:
+        nodes[cursor_element_id].setdefault("children", []).append(cursor_node)
+    elif cursor_node:
+        roots.append(cursor_node)
+
+    for node in nodes.values():
+        node["children"] = sorted(
+            node.get("children", []),
+            key=lambda item: (
+                (item.get("bbox") or [10**9, 10**9, 10**9, 10**9])[1],
+                (item.get("bbox") or [10**9, 10**9, 10**9, 10**9])[0],
+                item.get("id", ""),
+            ),
+        )
+    return sorted(roots, key=lambda item: ((item.get("bbox") or [0, 0, 0, 0])[1], (item.get("bbox") or [0, 0, 0, 0])[0], item.get("id", "")))
+
+
+def _source_kind(element: UIElement) -> str:
+    source = str(element.source or "").lower()
+    if source.startswith("doclayout"):
+        return "yolo_layout"
+    if source.startswith("ocr") or str(element.id or "").startswith("demo_ocr"):
+        return "ocr_text"
+    if source.startswith("omniparser"):
+        return "omniparser_element"
+    return "ui_element"
+
+
+def _cursor_hierarchy_node(cursor_target: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(cursor_target, dict) or str(cursor_target.get("relation") or "none") == "none":
+        return None
+    return {
+        "id": "cursor",
+        "kind": "cursor",
+        "type": "cursor",
+        "bbox": [],
+        "text": _cursor_action_text(cursor_target, ""),
+        "interactive": False,
+        "confidence": float(cursor_target.get("confidence") or 0.0),
+        "source": "cursor_detector",
+        "children": [],
     }
 
 
@@ -1635,6 +1792,8 @@ def _ocr_lines_from_elements(elements: Sequence[UIElement]) -> List[Dict[str, An
 def _normal_element_type(item: UIElement) -> str:
     raw = str(item.type or "").strip().lower().replace("-", "_")
     text = str(item.text or item.caption or "").strip().lower()
+    if _is_doclayout_element(item):
+        return raw or "layout_block"
     if raw in {"input", "input_box", "text_input", "textfield", "textbox"}:
         return "input"
     if raw in {"icon_button", "button"} or (item.interactive and any(term in text for term in ("submit", "save", "send", "next", "back"))):
@@ -1651,6 +1810,10 @@ def _normal_element_type(item: UIElement) -> str:
 def _is_ocr_element(item: UIElement) -> bool:
     source = str(item.source or "").lower()
     return source.startswith("ocr") or str(item.id or "").startswith("demo_ocr")
+
+
+def _is_doclayout_element(item: UIElement) -> bool:
+    return str(item.source or "").lower().startswith("doclayout")
 
 
 def _reading_order_key(item: UIElement) -> Tuple[int, int, str]:

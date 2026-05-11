@@ -20,7 +20,7 @@ import torch
 from .config import BatchModeSettings
 from .embeddings import BgeM3Embedder
 from .factory import build_pipeline, build_stt_adapter
-from .llm_adapters import LLMConfig, MockSectionWriter, build_section_writer
+from .llm_adapters import LLMConfig, MockSectionWriter, build_frame_description_writer, build_section_writer
 from .report_sections import build_report_sections as _canonical_build_report_sections
 from .segmenter import TopicSegmenter
 from .topic_linking import GlobalTopicLinker
@@ -345,6 +345,17 @@ class BatchMeetingAnalyzer:
                 mock_enabled=self.settings.llm_mock_enabled,
             )
         )
+        self.frame_writer = build_frame_description_writer(
+            LLMConfig(
+                backend=llm_backend,
+                base_url=self.settings.llm_base_url,
+                api_key=self.settings.llm_api_key,
+                model=self.settings.llm_model or self.settings.qwen_model_name,
+                timeout_sec=self.settings.llm_timeout_sec,
+                mock_enabled=self.settings.llm_mock_enabled,
+            ),
+            max_workers=self.settings.frame_description_workers,
+        )
         self._profile: Dict[str, Any] = {}
         self._profile_lock = Lock()
 
@@ -356,6 +367,7 @@ class BatchMeetingAnalyzer:
         title: str = "",
         persist_artifacts: bool = True,
         writer: str = "",
+        describe_frames: Optional[bool] = None,
     ) -> BatchAnalysisResult:
         self._reset_run_state()
         self._profile = {"stages": {}, "counts": {}}
@@ -377,6 +389,17 @@ class BatchMeetingAnalyzer:
             if transcript:
                 self.pipeline.ingest_utterances(transcript)
             frame_events = self._profile_call("visual_analysis", lambda: self._process_video(video_path))
+
+        should_describe_frames = self.settings.frame_descriptions_enabled if describe_frames is None else bool(describe_frames)
+        if should_describe_frames:
+            frame_description_writer = self._frame_writer_for_request(writer)
+            frame_events = self._profile_call(
+                "frame_llm_descriptions",
+                lambda: frame_description_writer.enrich_events(
+                    frame_events,
+                    max_demo_main_segments=self.settings.demo_main_max_segments,
+                ),
+            )
 
         topic_units = self._profile_call(
             "topic_segmentation",
@@ -449,6 +472,7 @@ class BatchMeetingAnalyzer:
                     title=str(item.get("title", "") or ""),
                     persist_artifacts=bool(item.get("persist_artifacts", True)),
                     writer=str(item.get("writer", "") or ""),
+                    describe_frames=item.get("describe_frames"),
                 )
             )
         return results
@@ -499,6 +523,48 @@ class BatchMeetingAnalyzer:
                     timeout_sec=self.settings.llm_timeout_sec,
                     mock_enabled=self.settings.llm_mock_enabled,
                 )
+            )
+        raise ValueError(f"Unknown writer preset: {writer}. Use mistral, gemini, qwen, or mock.")
+
+    def _frame_writer_for_request(self, writer: str):
+        writer = (writer or "").strip().lower()
+        if not writer:
+            return self.frame_writer
+        if writer in {"mock", "preserve"}:
+            return build_frame_description_writer(
+                LLMConfig(backend="mock", model="mock-frame-describer", mock_enabled=True),
+                max_workers=self.settings.frame_description_workers,
+            )
+        if writer == "gemini":
+            return build_frame_description_writer(
+                LLMConfig(
+                    backend="gemini",
+                    api_key=self.settings.llm_api_key or os.getenv("GEMINI_API_KEY", ""),
+                    model="gemini-2.5-flash",
+                    timeout_sec=max(self.settings.llm_timeout_sec, 900),
+                    mock_enabled=self.settings.llm_mock_enabled,
+                ),
+                max_workers=self.settings.frame_description_workers,
+            )
+        if writer == "qwen":
+            return build_frame_description_writer(
+                LLMConfig(
+                    backend="hf-local",
+                    model=self.settings.qwen_model_name,
+                    timeout_sec=self.settings.llm_timeout_sec,
+                    mock_enabled=self.settings.llm_mock_enabled,
+                ),
+                max_workers=max(1, min(2, self.settings.frame_description_workers)),
+            )
+        if writer == "mistral":
+            return build_frame_description_writer(
+                LLMConfig(
+                    backend="hf-local",
+                    model="unsloth/Mistral-Small-24B-Instruct-2501-unsloth-bnb-4bit",
+                    timeout_sec=self.settings.llm_timeout_sec,
+                    mock_enabled=self.settings.llm_mock_enabled,
+                ),
+                max_workers=max(1, min(2, self.settings.frame_description_workers)),
             )
         raise ValueError(f"Unknown writer preset: {writer}. Use mistral, gemini, qwen, or mock.")
 

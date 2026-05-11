@@ -40,6 +40,7 @@ def main() -> int:
     title = args.title or request_payload.get("title", "")
     writer = args.writer or request_payload.get("writer", "")
     persist_artifacts = (not args.no_persist) if not args.request_json else bool(request_payload.get("persist_artifacts", True)) and not args.no_persist
+    describe_frames = request_payload.get("describe_frames")
 
     logging.info("Starting batch analysis source=%s title=%s writer=%s persist=%s", source, title, writer, persist_artifacts)
     analyzer = BatchMeetingAnalyzer()
@@ -49,6 +50,7 @@ def main() -> int:
         title=title,
         persist_artifacts=persist_artifacts,
         writer=writer,
+        describe_frames=describe_frames,
     )
     logging.info("Finished batch analysis output_path=%s frame_events=%s", result.output_path, len(result.frame_events))
     result_json = json.dumps(result.to_dict(), ensure_ascii=True, indent=2)

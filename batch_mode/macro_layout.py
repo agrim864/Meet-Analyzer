@@ -48,6 +48,7 @@ class MacroLayoutDetector:
         try:
             detections = self._run_tiled_detection(frame_bgr)
             regions, region_confidences = estimate_coarse_regions(detections, frame_w, frame_h)
+            regions = refine_regions_from_boundary_evidence(frame_bgr, detections, regions, region_confidences)
             groups = build_layout_groups(regions, region_confidences, frame_w, frame_h)
             if groups:
                 return groups
@@ -145,8 +146,10 @@ def class_aware_nms(detections: Sequence[UIDetection], iou_threshold: float = 0.
 def estimate_coarse_regions(
     detections: Sequence[UIDetection], width: int, height: int
 ) -> Tuple[Dict[str, Optional[BBox]], Dict[str, float]]:
-    top_limit = int(height * 0.22)
-    bottom_limit = int(height * 0.82)
+    scale_height = _effective_layout_height(width, height)
+    mobile_like = width <= 800
+    top_limit = min(height, int(scale_height * 0.22))
+    bottom_limit = max(0, height - int(scale_height * 0.18))
     left_limit = int(width * 0.35)
     right_limit = int(width * 0.65)
 
@@ -228,8 +231,10 @@ def estimate_coarse_regions(
         left_sidebar_labels,
         width=width,
         height=height,
+        scale_height=scale_height,
         header_limit=top_limit,
         side="left",
+        mobile_like=mobile_like,
     )
     right_sidebar_box = _accept_sidebar_box(
         union_boxes(right_sidebar_candidates),
@@ -238,12 +243,14 @@ def estimate_coarse_regions(
         right_sidebar_labels,
         width=width,
         height=height,
+        scale_height=scale_height,
         header_limit=top_limit,
         side="right",
+        mobile_like=mobile_like,
     )
 
     if header_box:
-        header_height = min(max(header_box[3] + 12, int(height * 0.08)), int(height * 0.25))
+        header_height = min(max(header_box[3] + 12, int(scale_height * 0.08)), int(scale_height * 0.25), height)
         regions["header"] = (0, 0, width, header_height)
         region_confidences["header"] = _region_confidence(
             header_scores,
@@ -253,7 +260,7 @@ def estimate_coarse_regions(
             axis="x",
         )
     else:
-        regions["header"] = (0, 0, width, int(height * 0.10))
+        regions["header"] = (0, 0, width, min(height, int(scale_height * 0.10)))
 
     if footer_box:
         footer_y1 = max(footer_box[1] - 12, int(height * 0.75))
@@ -367,6 +374,190 @@ def build_layout_groups(
     return groups or [_fallback_content_group(frame_w, frame_h)]
 
 
+def refine_regions_from_boundary_evidence(
+    frame_bgr: np.ndarray,
+    detections: Sequence[UIDetection],
+    regions: Dict[str, Optional[BBox]],
+    region_confidences: Dict[str, float],
+) -> Dict[str, Optional[BBox]]:
+    if frame_bgr is None or getattr(frame_bgr, "size", 0) == 0:
+        return dict(regions)
+    frame_h, frame_w = frame_bgr.shape[:2]
+    refined = dict(regions)
+    scale_height = _effective_layout_height(frame_w, frame_h)
+    search_x = max(48, min(int(frame_w * 0.12), 240))
+    search_y = max(32, min(int(scale_height * 0.12), 160))
+
+    header_box = refined.get("header")
+    footer_box = refined.get("footer")
+    header_bottom = int(header_box[3]) if header_box and float(region_confidences.get("header", 0.0) or 0.0) > 0 else 0
+    footer_top = int(footer_box[1]) if footer_box else frame_h
+    if footer_top <= header_bottom:
+        header_bottom, footer_top = 0, frame_h
+
+    left_box = refined.get("left_sidebar")
+    if left_box:
+        current = int(left_box[2])
+        min_x = max(int(frame_w * 0.05), current - search_x)
+        max_x = min(int(frame_w * 0.45), current + search_x)
+        new_x = _best_vertical_boundary(frame_bgr, detections, current, min_x, max_x, header_bottom, footer_top)
+        refined["left_sidebar"] = clamp_bbox((0, header_bottom, new_x, footer_top), frame_w, frame_h)
+
+    right_box = refined.get("right_sidebar")
+    if right_box:
+        current = int(right_box[0])
+        min_x = max(int(frame_w * 0.55), current - search_x)
+        max_x = min(int(frame_w * 0.95), current + search_x)
+        new_x = _best_vertical_boundary(frame_bgr, detections, current, min_x, max_x, header_bottom, footer_top)
+        refined["right_sidebar"] = clamp_bbox((new_x, header_bottom, frame_w, footer_top), frame_w, frame_h)
+
+    header_box = refined.get("header")
+    if header_box and float(region_confidences.get("header", 0.0) or 0.0) > 0:
+        current = int(header_box[3])
+        min_y = max(0, current - search_y)
+        max_y = min(frame_h, int(scale_height * 0.35), current + search_y)
+        new_y = _best_horizontal_boundary(frame_bgr, detections, current, min_y, max_y, 0, frame_w)
+        refined["header"] = clamp_bbox((0, 0, frame_w, new_y), frame_w, frame_h)
+        header_bottom = new_y
+
+    footer_box = refined.get("footer")
+    if footer_box:
+        current = int(footer_box[1])
+        min_y = max(0, current - search_y)
+        max_y = min(frame_h, current + search_y)
+        new_y = _best_horizontal_boundary(frame_bgr, detections, current, min_y, max_y, 0, frame_w)
+        refined["footer"] = clamp_bbox((0, new_y, frame_w, frame_h), frame_w, frame_h)
+        footer_top = new_y
+
+    main_x1 = refined["left_sidebar"][2] if refined.get("left_sidebar") else 0
+    main_x2 = refined["right_sidebar"][0] if refined.get("right_sidebar") else frame_w
+    main_y1 = header_bottom
+    main_y2 = footer_top
+    if main_x2 <= main_x1:
+        main_x1, main_x2 = 0, frame_w
+    if main_y2 <= main_y1:
+        main_y1, main_y2 = 0, frame_h
+    refined["main_content"] = clamp_bbox((main_x1, main_y1, main_x2, main_y2), frame_w, frame_h)
+    return refined
+
+
+def _best_vertical_boundary(
+    frame_bgr: np.ndarray,
+    detections: Sequence[UIDetection],
+    current: int,
+    min_x: int,
+    max_x: int,
+    y1: int,
+    y2: int,
+) -> int:
+    if max_x <= min_x or y2 <= y1:
+        return current
+    step = max(2, int((max_x - min_x) / 90))
+    best_x = int(current)
+    best_score = float("inf")
+    for x in range(int(min_x), int(max_x) + 1, step):
+        score = _visual_vertical_seam_score(frame_bgr, x, y1, y2)
+        score += _vertical_detection_cut_penalty(detections, x, y1, y2, frame_bgr.shape[1])
+        score += abs(x - current) * 0.0015
+        if score < best_score:
+            best_score = score
+            best_x = x
+    return int(best_x)
+
+
+def _best_horizontal_boundary(
+    frame_bgr: np.ndarray,
+    detections: Sequence[UIDetection],
+    current: int,
+    min_y: int,
+    max_y: int,
+    x1: int,
+    x2: int,
+) -> int:
+    if max_y <= min_y or x2 <= x1:
+        return current
+    step = max(2, int((max_y - min_y) / 90))
+    best_y = int(current)
+    best_score = float("inf")
+    for y in range(int(min_y), int(max_y) + 1, step):
+        score = _visual_horizontal_seam_score(frame_bgr, y, x1, x2)
+        score += _horizontal_detection_cut_penalty(detections, y, x1, x2, frame_bgr.shape[0])
+        score += abs(y - current) * 0.0015
+        if score < best_score:
+            best_score = score
+            best_y = y
+    return int(best_y)
+
+
+def _visual_vertical_seam_score(frame_bgr: np.ndarray, x: int, y1: int, y2: int) -> float:
+    frame_h, frame_w = frame_bgr.shape[:2]
+    x1 = max(0, int(x) - 2)
+    x2 = min(frame_w, int(x) + 3)
+    y1 = max(0, min(frame_h, int(y1)))
+    y2 = max(0, min(frame_h, int(y2)))
+    strip = frame_bgr[y1:y2, x1:x2]
+    return _strip_texture_score(strip)
+
+
+def _visual_horizontal_seam_score(frame_bgr: np.ndarray, y: int, x1: int, x2: int) -> float:
+    frame_h, frame_w = frame_bgr.shape[:2]
+    y1 = max(0, int(y) - 2)
+    y2 = min(frame_h, int(y) + 3)
+    x1 = max(0, min(frame_w, int(x1)))
+    x2 = max(0, min(frame_w, int(x2)))
+    strip = frame_bgr[y1:y2, x1:x2]
+    return _strip_texture_score(strip)
+
+
+def _strip_texture_score(strip: np.ndarray) -> float:
+    if strip is None or getattr(strip, "size", 0) == 0:
+        return 1.0
+    gray = strip.astype(np.float32).mean(axis=2) if strip.ndim == 3 else strip.astype(np.float32)
+    texture = float(np.std(gray) / 64.0)
+    dark_or_colored = float(np.mean((gray < 245).astype(np.float32))) * 0.35
+    return texture + dark_or_colored
+
+
+def _vertical_detection_cut_penalty(
+    detections: Sequence[UIDetection],
+    x: int,
+    y1: int,
+    y2: int,
+    frame_w: int,
+) -> float:
+    span = max(1, y2 - y1)
+    penalty = 0.0
+    for det in detections:
+        bx1, by1, bx2, by2 = [int(v) for v in det.box]
+        if bx2 - bx1 > int(frame_w * 0.72):
+            continue
+        if bx1 <= x <= bx2 and by2 > y1 and by1 < y2:
+            overlap = max(0, min(by2, y2) - max(by1, y1)) / span
+            center_bias = 1.0 - min(1.0, abs(x - ((bx1 + bx2) / 2.0)) / max(1.0, (bx2 - bx1) / 2.0))
+            penalty += (0.45 + float(det.confidence)) * overlap * (0.5 + center_bias)
+    return penalty
+
+
+def _horizontal_detection_cut_penalty(
+    detections: Sequence[UIDetection],
+    y: int,
+    x1: int,
+    x2: int,
+    frame_h: int,
+) -> float:
+    span = max(1, x2 - x1)
+    penalty = 0.0
+    for det in detections:
+        bx1, by1, bx2, by2 = [int(v) for v in det.box]
+        if by2 - by1 > int(frame_h * 0.72):
+            continue
+        if by1 <= y <= by2 and bx2 > x1 and bx1 < x2:
+            overlap = max(0, min(bx2, x2) - max(bx1, x1)) / span
+            center_bias = 1.0 - min(1.0, abs(y - ((by1 + by2) / 2.0)) / max(1.0, (by2 - by1) / 2.0))
+            penalty += (0.45 + float(det.confidence)) * overlap * (0.5 + center_bias)
+    return penalty
+
+
 def normalize_ui_class(raw_class_name: str) -> str:
     return raw_class_name.strip().lower().replace(" ", "_")
 
@@ -426,8 +617,10 @@ def _accept_sidebar_box(
     *,
     width: int,
     height: int,
+    scale_height: int,
     header_limit: int,
     side: str,
+    mobile_like: bool = False,
 ) -> Optional[BBox]:
     if union is None:
         return None
@@ -436,9 +629,10 @@ def _accept_sidebar_box(
     span_h = max(0, y2 - y1)
     if span_w < int(width * 0.06):
         return None
-    if span_h < int(height * 0.18):
+    if span_h < int(scale_height * 0.18):
         return None
-    if span_w > int(width * 0.36):
+    max_sidebar_width = 0.45 if mobile_like else 0.36
+    if span_w > int(width * max_sidebar_width):
         return None
     if side == "left":
         if x1 > int(width * 0.05) or x2 > int(width * 0.40):
@@ -448,10 +642,12 @@ def _accept_sidebar_box(
             return None
 
     below_header = sum(1 for box in candidates if len(box) >= 4 and int(box[3]) >= header_limit)
-    vertical_bands = _vertical_band_count(candidates, height)
-    direct_sidebar = "sidebar" in labels and below_header >= 1 and span_h >= int(height * 0.20)
-    distributed_clues = len(candidates) >= 4 and vertical_bands >= 3 and span_h >= int(height * 0.20)
-    strong_single = any(score >= 0.84 for score in scores) and span_h >= int(height * 0.30)
+    vertical_bands = _vertical_band_count(candidates, scale_height)
+    direct_sidebar = "sidebar" in labels and below_header >= 1 and span_h >= int(scale_height * 0.20)
+    distributed_clues = len(candidates) >= 4 and vertical_bands >= 3 and span_h >= int(scale_height * 0.20)
+    strong_single = any(score >= 0.84 for score in scores) and span_h >= int(scale_height * 0.30)
+    if mobile_like and not direct_sidebar:
+        return None
     if direct_sidebar or distributed_clues or strong_single:
         return union
     return None
@@ -495,7 +691,7 @@ def _is_side_rail_candidate(box: Sequence[int], width: int, *, side: str) -> boo
 
 
 def _vertical_band_count(boxes: Sequence[Sequence[int]], height: int) -> int:
-    band_h = max(1, int(height * 0.12))
+    band_h = max(1, int(height * 0.10))
     bands = set()
     for box in boxes:
         if len(box) < 4:
@@ -503,6 +699,15 @@ def _vertical_band_count(boxes: Sequence[Sequence[int]], height: int) -> int:
         cy = (int(box[1]) + int(box[3])) / 2.0
         bands.add(int(cy / band_h))
     return len(bands)
+
+
+def _effective_layout_height(width: int, height: int) -> int:
+    """Estimate the viewport height for thresholding tall full-page captures."""
+    if width <= 0 or height <= 0:
+        return max(1, height)
+    if width <= 800:
+        return max(1, min(height, max(480, int(width * 1.25))))
+    return max(1, min(height, max(720, int(width * 0.75))))
 
 
 def _resolve_bundled_uitag_weights() -> Optional[str]:

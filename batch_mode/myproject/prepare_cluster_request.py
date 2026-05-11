@@ -34,6 +34,7 @@ def main() -> int:
     parser.add_argument("--skip-transcript", action="store_true", help="Write an empty transcript instead of calling Deepgram.")
     parser.add_argument("--require-transcript", action="store_true", help="Fail if no transcript segments are produced.")
     parser.add_argument("--no-persist-artifacts", action="store_true", help="Set persist_artifacts=false in the request.")
+    parser.add_argument("--disable-frame-descriptions", action="store_true", help="Set describe_frames=false in the request.")
     args = parser.parse_args()
 
     transcript_segments: List[Dict[str, Any]] = []
@@ -52,6 +53,7 @@ def main() -> int:
         "title": args.title,
         "transcript_segments": transcript_segments,
         "persist_artifacts": not args.no_persist_artifacts,
+        "describe_frames": not args.disable_frame_descriptions,
     }
     request_path = Path(args.request_json)
     request_path.parent.mkdir(parents=True, exist_ok=True)

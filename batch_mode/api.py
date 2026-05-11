@@ -19,6 +19,7 @@ class AnalyzeRequest(BaseModel):
     title: str = ""
     persist_artifacts: bool = True
     writer: str = Field("", description="Report writer preset: mistral, gemini, qwen, or mock.")
+    describe_frames: Optional[bool] = Field(None, description="Enable batch frame-level LLM descriptions. Defaults to BATCH_FRAME_DESCRIPTIONS_ENABLED.")
 
 
 class AnalyzeBatchRequest(BaseModel):
@@ -56,6 +57,9 @@ def health() -> Dict[str, Any]:
         "llm_model": settings.llm_model,
         "qwen_model": settings.qwen_model_name,
         "writer_presets": ["mistral", "gemini", "qwen", "mock"],
+        "doclayout_enabled": settings.doclayout_enabled,
+        "doclayout_model": f"{settings.doclayout_repo_id}/{settings.doclayout_filename}",
+        "frame_descriptions_enabled": settings.frame_descriptions_enabled,
         "cluster_host": settings.cluster_host,
         "cluster_project_dir": settings.cluster_project_dir,
     }
@@ -70,6 +74,7 @@ def analyze(request: AnalyzeRequest) -> Dict[str, Any]:
             title=request.title,
             persist_artifacts=request.persist_artifacts,
             writer=request.writer,
+            describe_frames=request.describe_frames,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -89,6 +94,7 @@ def analyze_batch(request: AnalyzeBatchRequest) -> Dict[str, Any]:
                     "title": item.title,
                     "persist_artifacts": item.persist_artifacts,
                     "writer": item.writer or request.writer,
+                    "describe_frames": item.describe_frames,
                 }
                 for item in request.requests
             ]
@@ -112,6 +118,7 @@ def analyze_cluster(request: AnalyzeRequest) -> Dict[str, Any]:
             title=request.title,
             persist_artifacts=request.persist_artifacts,
             writer=request.writer,
+            describe_frames=request.describe_frames,
         )
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -138,6 +145,7 @@ def analyze_cluster_batch(request: AnalyzeBatchRequest) -> Dict[str, Any]:
                     "title": item.title,
                     "persist_artifacts": item.persist_artifacts,
                     "writer": item.writer or request.writer,
+                    "describe_frames": item.describe_frames,
                 }
                 for item in request.requests
             ],

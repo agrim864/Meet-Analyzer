@@ -47,6 +47,14 @@ class BatchModeSettings:
     macro_layout_model_filename: str
     macro_layout_conf: float
     macro_layout_iou: float
+    doclayout_enabled: bool
+    doclayout_model_ref: str
+    doclayout_repo_id: str
+    doclayout_filename: str
+    doclayout_conf: float
+    doclayout_iou: float
+    doclayout_imgsz: int
+    doclayout_device: str
     change_tiny_ratio: float
     change_pixel_threshold: int
     change_ssim_threshold: float
@@ -89,6 +97,9 @@ class BatchModeSettings:
     llm_model: str
     llm_timeout_sec: int
     llm_mock_enabled: bool
+    frame_descriptions_enabled: bool
+    frame_description_workers: int
+    demo_main_max_segments: int
     qwen_model_name: str
     cluster_host: str
     cluster_user: str
@@ -145,6 +156,14 @@ class BatchModeSettings:
             macro_layout_model_filename=os.getenv("MACRO_LAYOUT_MODEL_FILENAME", "yolo-ui.pt").strip(),
             macro_layout_conf=float(os.getenv("MACRO_LAYOUT_CONF", "0.20")),
             macro_layout_iou=float(os.getenv("MACRO_LAYOUT_IOU", "0.45")),
+            doclayout_enabled=os.getenv("DOCLAYOUT_ENABLED", "1").strip().lower() not in {"0", "false", "no"},
+            doclayout_model_ref=os.getenv("DOCLAYOUT_MODEL_REF", "").strip(),
+            doclayout_repo_id=os.getenv("DOCLAYOUT_REPO_ID", "juliozhao/DocLayout-YOLO-DocStructBench").strip(),
+            doclayout_filename=os.getenv("DOCLAYOUT_FILENAME", "doclayout_yolo_docstructbench_imgsz1024.pt").strip(),
+            doclayout_conf=float(os.getenv("DOCLAYOUT_CONF", "0.20")),
+            doclayout_iou=float(os.getenv("DOCLAYOUT_IOU", "0.45")),
+            doclayout_imgsz=int(os.getenv("DOCLAYOUT_IMGSZ", "1024")),
+            doclayout_device=os.getenv("DOCLAYOUT_DEVICE", "auto").strip(),
             change_tiny_ratio=float(os.getenv("CHANGE_TINY_RATIO", "0.01")),
             change_pixel_threshold=int(os.getenv("CHANGE_PIXEL_THRESHOLD", "18")),
             change_ssim_threshold=float(os.getenv("CHANGE_SSIM_THRESHOLD", "0.995")),
@@ -187,6 +206,9 @@ class BatchModeSettings:
             llm_model=os.getenv("BATCH_LLM_MODEL", "unsloth/Mistral-Small-24B-Instruct-2501-unsloth-bnb-4bit").strip(),
             llm_timeout_sec=int(os.getenv("BATCH_LLM_TIMEOUT_SEC", "180")),
             llm_mock_enabled=os.getenv("BATCH_LLM_MOCK_ENABLED", "1").strip().lower() in {"1", "true", "yes"},
+            frame_descriptions_enabled=os.getenv("BATCH_FRAME_DESCRIPTIONS_ENABLED", "1").strip().lower() not in {"0", "false", "no"},
+            frame_description_workers=int(os.getenv("BATCH_FRAME_DESCRIPTION_WORKERS", "6")),
+            demo_main_max_segments=int(os.getenv("BATCH_DEMO_MAIN_MAX_SEGMENTS", "6")),
             qwen_model_name=os.getenv("BATCH_QWEN_MODEL_NAME", "Qwen/Qwen3-30B-A3B-FP8").strip(),
             cluster_host=os.getenv("BATCH_CLUSTER_HOST", "").strip(),
             cluster_user=os.getenv("BATCH_CLUSTER_USER", "").strip(),

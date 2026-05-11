@@ -25,6 +25,7 @@ class ClusterJobRecord:
     remote_source: str
     remote_log_glob: str
     persist_artifacts: bool
+    describe_frames: Optional[bool] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -44,6 +45,7 @@ class ClusterBatchRunner:
         transcript_segments: Optional[list[dict[str, Any]]] = None,
         persist_artifacts: bool = True,
         writer: str = "",
+        describe_frames: Optional[bool] = None,
         dependency_after_job_id: str = "",
     ) -> ClusterJobRecord:
         request_id = uuid.uuid4().hex
@@ -58,6 +60,7 @@ class ClusterBatchRunner:
             "title": title,
             "transcript_segments": transcript_segments or [],
             "persist_artifacts": persist_artifacts,
+            "describe_frames": describe_frames,
         }
         writer_env = self._writer_env(writer)
         if self.settings.llm_base_url and not writer_env:
@@ -81,6 +84,7 @@ class ClusterBatchRunner:
                     transcript_json=f"{remote_job_dir}/transcript_segments.json",
                     title=title,
                     persist_artifacts=persist_artifacts,
+                    describe_frames=describe_frames,
                 )
             exports = [
                     f"cd {self._shell(self.settings.cluster_project_dir)}",
@@ -99,6 +103,14 @@ class ClusterBatchRunner:
                     f"export BATCH_EMBEDDING_MODEL={self._shell(self.settings.embedding_model_name)}",
                     f"export BATCH_LLM_BACKEND={self._shell(llm_backend)}",
                     f"export BATCH_LLM_SECTION_WORKERS={self._shell(str(__import__('os').getenv('BATCH_LLM_SECTION_WORKERS', '4')))}",
+                    f"export BATCH_FRAME_DESCRIPTIONS_ENABLED={self._shell('1' if self.settings.frame_descriptions_enabled else '0')}",
+                    f"export BATCH_FRAME_DESCRIPTION_WORKERS={self._shell(str(self.settings.frame_description_workers))}",
+                    f"export BATCH_DEMO_MAIN_MAX_SEGMENTS={self._shell(str(self.settings.demo_main_max_segments))}",
+                    f"export DOCLAYOUT_ENABLED={self._shell('1' if self.settings.doclayout_enabled else '0')}",
+                    f"export DOCLAYOUT_MODEL_REF={self._shell(self.settings.doclayout_model_ref)}",
+                    f"export DOCLAYOUT_REPO_ID={self._shell(self.settings.doclayout_repo_id)}",
+                    f"export DOCLAYOUT_FILENAME={self._shell(self.settings.doclayout_filename)}",
+                    f"export DOCLAYOUT_DEVICE={self._shell(self.settings.doclayout_device)}",
                     "export HF_HUB_OFFLINE=1",
                     "export TRANSFORMERS_OFFLINE=1",
                     "export BATCH_DISABLE_SIGLIP=1",
@@ -145,6 +157,7 @@ class ClusterBatchRunner:
             remote_source=payload["source"],
             remote_log_glob=remote_log_glob,
             persist_artifacts=persist_artifacts,
+            describe_frames=describe_frames,
         )
         self._write_local_record(record)
         return record
@@ -165,6 +178,7 @@ class ClusterBatchRunner:
                 transcript_segments=item.get("transcript_segments"),
                 persist_artifacts=bool(item.get("persist_artifacts", True)),
                 writer=str(item.get("writer", writer) or writer),
+                describe_frames=item.get("describe_frames"),
                 dependency_after_job_id=previous_job_id if sequential else "",
             )
             records.append(record)
@@ -544,6 +558,7 @@ class ClusterBatchRunner:
         transcript_json: str,
         title: str,
         persist_artifacts: bool,
+        describe_frames: Optional[bool],
     ) -> None:
         command_parts = [
             f"cd {self._shell(self.settings.cluster_project_dir)}",
@@ -556,7 +571,8 @@ class ClusterBatchRunner:
             f"--transcript-json {self._shell(transcript_json)} "
             f"--title {self._shell(title)} "
             f"--require-transcript"
-            + ("" if persist_artifacts else " --no-persist-artifacts"),
+            + ("" if persist_artifacts else " --no-persist-artifacts")
+            + (" --disable-frame-descriptions" if describe_frames is False else ""),
         ]
         self._exec_checked(client, " && ".join(command_parts))
 

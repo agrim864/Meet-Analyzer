@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import numpy as np
 
-from batch_mode.llm_adapters import MockSectionWriter, _clean_generated_text, _guard_generated_section
+from batch_mode.llm_adapters import MockFrameDescriptionWriter, MockSectionWriter, _clean_generated_text, _guard_generated_section
 from batch_mode.macro_layout import UIDetection, build_layout_groups, estimate_coarse_regions
 from batch_mode.omniparser_adapter import OmniParserAdapter
 from batch_mode.pipeline import DemoAnalyzerPipeline, _build_demo_screen_structure
@@ -194,8 +194,71 @@ class BatchModeTests(unittest.TestCase):
         self.assertIn("main content area contains", summary.lower())
         self.assertIn("cursor", summary.lower())
         self.assertEqual(structure["regions"][0]["ocr_line_count"], 1)
+        self.assertEqual(structure["hierarchy_rule"], "macro_region > largest-containing DocLayout/OmniParser/OCR element > nested contained elements > cursor marker")
         ocr_parent = next(node for node in structure["regions"][0]["children"] if node["id"] == "demo_ocr_text_0001")
         self.assertTrue(any(child["id"] == "input_1" for child in ocr_parent["children"]))
+
+    def test_demo_structure_hierarchy_nests_doclayout_omniparser_ocr_and_cursor(self) -> None:
+        groups = [
+            LayoutGroup(id="group_main_content", label="main_content", bbox=(0, 0, 1200, 900), source="test"),
+        ]
+        elements = [
+            UIElement(id="layout_1", type="table", bbox=(100, 100, 900, 500), source="doclayout_yolo", confidence=0.9),
+            UIElement(id="button_1", type="button", bbox=(160, 180, 260, 230), text="Run", source="omniparser", interactive=True, confidence=0.8),
+            UIElement(id="demo_ocr_text_0001", type="text", bbox=(155, 175, 270, 235), text="Run", source="ocr:easyocr", confidence=0.7),
+        ]
+        structure = _build_demo_screen_structure(
+            groups,
+            elements,
+            cursor_target={
+                "element_id": "button_1",
+                "element_type": "button",
+                "element_text": "Run",
+                "parent_macro_region_id": "group_main_content",
+                "parent_macro_region_type": "main_content",
+                "relation": "hovering_over",
+                "confidence": 0.8,
+            },
+        )
+
+        hierarchy = structure["regions"][0]["hierarchy"]
+        self.assertEqual(hierarchy[0]["id"], "layout_1")
+        nested_ids = str(hierarchy)
+        self.assertIn("button_1", nested_ids)
+        self.assertIn("demo_ocr_text_0001", nested_ids)
+        self.assertIn("cursor", nested_ids)
+
+    def test_mock_frame_description_writer_adds_batch_llm_detail(self) -> None:
+        events = [
+            {
+                "event_id": "evt_1",
+                "timestamp_sec": 1.0,
+                "mode": "demo",
+                "summary": "Dashboard with upload button.",
+                "visual_payload": {
+                    "page_summary": "Dashboard with upload button.",
+                    "screen_structure": {
+                        "regions": [
+                            {
+                                "id": "group_main_content",
+                                "type": "main_content",
+                                "bbox": [0, 0, 1200, 900],
+                                "element_count": 1,
+                                "ocr_line_count": 1,
+                                "sample_text": ["Upload CSV"],
+                                "children": [{"id": "upload", "bbox": [100, 100, 250, 160], "text": "Upload CSV"}],
+                            }
+                        ]
+                    },
+                },
+            }
+        ]
+
+        enriched = MockFrameDescriptionWriter().enrich_events(events)
+
+        detail = enriched[0]["visual_payload"]["llm_detail"]
+        self.assertIn("segments", detail)
+        self.assertIn("page_summary", detail)
 
     def test_omniparser_region_parse_rebases_bottom_screen_elements(self) -> None:
         class FakeParserClient:

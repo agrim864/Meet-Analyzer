@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from .config import BatchModeSettings
 from .cursor_adapter import CursorMotionAnalyzer
 from .cursor_backend import CursorMotionAnalysisBackend
+from .doclayout_adapter import DocLayoutYOLOAdapter
 from .macro_layout import MacroLayoutDetector
 from .mode_router import ModeRouter
 from .ocr_adapter import OCRTextExtractor
@@ -22,6 +23,7 @@ class RuntimeComponents:
     omniparser: OmniParserAdapter
     cursor_backend: CursorMotionAnalysisBackend
     macro_layout: MacroLayoutDetector
+    doclayout: DocLayoutYOLOAdapter
     ocr: OCRTextExtractor
     slide: SuryaSlideAnalyzer
     router: ModeRouter
@@ -31,6 +33,7 @@ class RuntimeComponents:
         self.siglip.initialize()
         self.cursor_backend.warmup()
         self.macro_layout.warmup()
+        self.doclayout.warmup()
         self.ocr.warmup()
         self.slide.warmup()
         self.omniparser.warmup()
@@ -49,6 +52,16 @@ def build_runtime_components(settings: BatchModeSettings | None = None) -> Runti
         model_filename=settings.macro_layout_model_filename,
         conf=settings.macro_layout_conf,
         iou=settings.macro_layout_iou,
+    )
+    doclayout = DocLayoutYOLOAdapter(
+        model_ref=settings.doclayout_model_ref,
+        repo_id=settings.doclayout_repo_id,
+        filename=settings.doclayout_filename,
+        conf=settings.doclayout_conf,
+        iou=settings.doclayout_iou,
+        imgsz=settings.doclayout_imgsz,
+        device=settings.doclayout_device,
+        enabled=settings.doclayout_enabled,
     )
     ocr = OCRTextExtractor(requested_mode=settings.ocr_mode, ocr_lang=settings.ocr_lang)
     slide = SuryaSlideAnalyzer(ocr, enabled=settings.surya_enabled)
@@ -74,6 +87,7 @@ def build_runtime_components(settings: BatchModeSettings | None = None) -> Runti
         omniparser=omniparser,
         cursor_backend=cursor_backend,
         macro_layout=macro_layout,
+        doclayout=doclayout,
         ocr=ocr,
         slide=slide,
         router=router,
@@ -90,6 +104,7 @@ def build_pipeline(settings: BatchModeSettings | None = None) -> IncrementalUISt
         omniparser=runtime.omniparser,
         cursor_analyzer=cursor_analyzer,
         macro_layout_detector=runtime.macro_layout,
+        doclayout_detector=runtime.doclayout,
         ocr_extractor=runtime.ocr,
         slide_analyzer=runtime.slide,
         mode_router=runtime.router,
