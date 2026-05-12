@@ -227,6 +227,12 @@ body {
   font-size: 12px;
 }
 
+.summary-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.55;
+}
+
 .mono {
   font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
 }

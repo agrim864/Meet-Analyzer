@@ -5,17 +5,19 @@ from dataclasses import dataclass
 from .config import NewRealtimeSettings
 from .cursor_adapter import CursorMotionAnalyzer
 from .cursor_backend import CursorMotionAnalysisBackend
+from .doclayout_adapter import DocLayoutYOLOAdapter
 from .frame_summarizer import (
     BaseFrameSummarizer,
+    CascadingFrameSummarizer,
     GeminiFrameSummarizer,
     HeuristicFrameSummarizer,
     LocalTransformersFrameSummarizer,
+    OpenAICompatibleFrameSummarizer,
     ResilientFrameSummarizer,
 )
 from .macro_layout import MacroLayoutDetector
 from .mode_router import ModeRouter
 from .ocr_adapter import OCRTextExtractor
-from .omniparser_adapter import OmniParserAdapter
 from .pipeline import DemoAnalyzerPipeline, IncrementalUIStatePipeline
 from .siglip_adapter import SiglipScreenClassifier
 from .slide_adapter import SuryaSlideAnalyzer
@@ -26,9 +28,9 @@ from .stt_adapter import DeepgramSTTAdapter, UtteranceStore
 class RuntimeComponents:
     settings: NewRealtimeSettings
     siglip: SiglipScreenClassifier
-    omniparser: OmniParserAdapter
     cursor_backend: CursorMotionAnalysisBackend
     macro_layout: MacroLayoutDetector
+    doclayout: DocLayoutYOLOAdapter
     ocr: OCRTextExtractor
     slide: SuryaSlideAnalyzer
     router: ModeRouter
@@ -39,9 +41,9 @@ class RuntimeComponents:
         self.siglip.initialize()
         self.cursor_backend.warmup()
         self.macro_layout.warmup()
+        self.doclayout.warmup()
         self.ocr.warmup()
         self.slide.warmup()
-        self.omniparser.warmup()
         self.frame_summarizer.warmup()
         self.warmed = True
 
@@ -59,6 +61,16 @@ def build_runtime_components(settings: NewRealtimeSettings | None = None) -> Run
         conf=settings.macro_layout_conf,
         iou=settings.macro_layout_iou,
     )
+    doclayout = DocLayoutYOLOAdapter(
+        model_ref=settings.doclayout_model_ref,
+        repo_id=settings.doclayout_repo_id,
+        filename=settings.doclayout_filename,
+        conf=settings.doclayout_conf,
+        iou=settings.doclayout_iou,
+        imgsz=settings.doclayout_imgsz,
+        device=settings.doclayout_device,
+        enabled=settings.doclayout_enabled,
+    )
     ocr = OCRTextExtractor(requested_mode=settings.ocr_mode, ocr_lang=settings.ocr_lang)
     slide = SuryaSlideAnalyzer(ocr, enabled=settings.surya_enabled)
     router = ModeRouter(
@@ -67,23 +79,15 @@ def build_runtime_components(settings: NewRealtimeSettings | None = None) -> Run
         demo_guard_margin=settings.route_demo_guard_margin,
         required_consecutive_frames=settings.route_required_consecutive,
     )
-    omniparser = OmniParserAdapter(
-        hf_token=settings.hf_api_key,
-        repo_id=settings.omniparser_repo_id,
-        cache_dir=settings.omniparser_weights_dir,
-        bbox_threshold=settings.omniparser_bbox_threshold,
-        iou_threshold=settings.omniparser_iou_threshold,
-        imgsz=settings.omniparser_imgsz,
-    )
     frame_summarizer = build_frame_summarizer(settings)
     siglip = SiglipScreenClassifier()
     siglip.initialize()
     return RuntimeComponents(
         settings=settings,
         siglip=siglip,
-        omniparser=omniparser,
         cursor_backend=cursor_backend,
         macro_layout=macro_layout,
+        doclayout=doclayout,
         ocr=ocr,
         slide=slide,
         router=router,
@@ -98,9 +102,9 @@ def build_pipeline(settings: NewRealtimeSettings | None = None) -> IncrementalUI
     return DemoAnalyzerPipeline(
         siglip_classifier=runtime.siglip,
         stt_store=stt_store,
-        omniparser=runtime.omniparser,
         cursor_analyzer=cursor_analyzer,
         macro_layout_detector=runtime.macro_layout,
+        doclayout_detector=runtime.doclayout,
         ocr_extractor=runtime.ocr,
         slide_analyzer=runtime.slide,
         mode_router=runtime.router,
@@ -135,23 +139,70 @@ def build_stt_adapter(settings: NewRealtimeSettings | None = None) -> DeepgramST
 def build_frame_summarizer(settings: NewRealtimeSettings | None = None) -> ResilientFrameSummarizer:
     settings = settings or NewRealtimeSettings.from_env()
     if settings.frame_summarizer_enabled:
-        primary_summarizer: BaseFrameSummarizer
-        if settings.frame_summarizer_provider == "gemini":
-            primary_summarizer = GeminiFrameSummarizer(
+        api_fallbacks: list[BaseFrameSummarizer] = []
+        if settings.groq_api_key:
+            groq_models = [
+                settings.groq_model,
+                *[item.strip() for item in settings.groq_model_fallbacks.split(",") if item.strip()],
+            ]
+            for model_name in dict.fromkeys(groq_models):
+                api_fallbacks.append(
+                    OpenAICompatibleFrameSummarizer(
+                        provider_name="groq",
+                        api_key=settings.groq_api_key,
+                        model_name=model_name,
+                        endpoint="https://api.groq.com/openai/v1/chat/completions",
+                        max_output_tokens=settings.frame_summarizer_max_new_tokens,
+                        temperature=settings.frame_summarizer_temperature,
+                    )
+                )
+        if settings.openrouter_api_key:
+            openrouter_models = [
+                settings.openrouter_model,
+                *[item.strip() for item in settings.openrouter_model_fallbacks.split(",") if item.strip()],
+            ]
+            for model_name in dict.fromkeys(openrouter_models):
+                api_fallbacks.append(
+                    OpenAICompatibleFrameSummarizer(
+                        provider_name="openrouter",
+                        api_key=settings.openrouter_api_key,
+                        model_name=model_name,
+                        endpoint="https://openrouter.ai/api/v1/chat/completions",
+                        max_output_tokens=settings.frame_summarizer_max_new_tokens,
+                        temperature=settings.frame_summarizer_temperature,
+                        extra_headers={
+                            "HTTP-Referer": "http://localhost",
+                            "X-Title": "meet-agent realtime",
+                        },
+                    )
+                )
+        local_enabled = settings.frame_summarizer_device.strip().lower() not in {"0", "false", "no", "none", "disabled", "off"}
+        local_fallback: BaseFrameSummarizer = (
+            LocalTransformersFrameSummarizer(
+                model_name=settings.frame_summarizer_fallback_model,
+                device=settings.frame_summarizer_device,
+                max_new_tokens=settings.frame_summarizer_max_new_tokens,
+                temperature=settings.frame_summarizer_temperature,
+            )
+            if local_enabled
+            else HeuristicFrameSummarizer()
+        )
+        fallback_summarizer: BaseFrameSummarizer = CascadingFrameSummarizer([*api_fallbacks, local_fallback])
+        if settings.frame_summarizer_provider == "gemini" and settings.gemini_api_key:
+            primary_summarizer: BaseFrameSummarizer = GeminiFrameSummarizer(
                 api_key=settings.gemini_api_key,
                 model_name=settings.frame_summarizer_model,
                 max_output_tokens=settings.frame_summarizer_max_new_tokens,
                 temperature=settings.frame_summarizer_temperature,
             )
+        elif settings.frame_summarizer_provider == "gemini":
+            primary_summarizer = fallback_summarizer
+            fallback_summarizer = HeuristicFrameSummarizer()
         else:
-            primary_summarizer = LocalTransformersFrameSummarizer(
-                model_name=settings.frame_summarizer_model,
-                device=settings.frame_summarizer_device,
-                max_new_tokens=settings.frame_summarizer_max_new_tokens,
-                temperature=settings.frame_summarizer_temperature,
-            )
+            primary_summarizer = CascadingFrameSummarizer([*api_fallbacks, local_fallback])
+            fallback_summarizer = HeuristicFrameSummarizer()
         return ResilientFrameSummarizer(
             primary_summarizer,
-            fallback=HeuristicFrameSummarizer(),
+            fallback=fallback_summarizer,
         )
     return ResilientFrameSummarizer(HeuristicFrameSummarizer(), fallback=HeuristicFrameSummarizer())

@@ -187,7 +187,7 @@ class BatchFrameDescriptionWriter:
                 },
                 timeout=self.config.timeout_sec,
             )
-            response.raise_for_status()
+            _raise_sanitized_response_error(response, "Gemini frame description request")
             parts = ((response.json().get("candidates") or [{}])[0].get("content", {}).get("parts", []))
             return "\n".join(str(part.get("text", "")) for part in parts if isinstance(part, dict)).strip()
         if backend in {"openrouter", "openrouter-chat"}:
@@ -448,7 +448,7 @@ class GeminiSectionWriter:
                 },
                 timeout=self.config.timeout_sec,
             )
-            response.raise_for_status()
+            _raise_sanitized_response_error(response, f"Gemini section request for {name}")
             data = response.json()
             parts = (
                 (data.get("candidates") or [{}])[0]
@@ -946,6 +946,24 @@ def _generate_sections_parallel(ordered_keys: Sequence[str], generate_one) -> Di
             key, value = future.result()
             output[key] = value
     return output
+
+
+def _raise_sanitized_response_error(response: requests.Response, context: str) -> None:
+    if response.ok:
+        return
+    detail = ""
+    try:
+        payload = response.json()
+        if isinstance(payload, dict):
+            error = payload.get("error")
+            if isinstance(error, dict):
+                detail = str(error.get("message") or error.get("status") or "")
+            else:
+                detail = str(payload)[:300]
+    except Exception:
+        detail = response.text[:300]
+    detail = re.sub(r"key=[^&\\s]+", "key=[redacted]", detail)
+    raise RuntimeError(f"{context} failed with HTTP {response.status_code}: {detail}")
 
 
 def _compose_final_markdown(output: Dict[str, Any], ordered_keys: Sequence[str]) -> str:

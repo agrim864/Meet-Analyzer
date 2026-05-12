@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
+import re
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,6 +21,7 @@ REALTIME_ROOT = Path(__file__).resolve().parent
 REMOTE_PROJECT_ROOT = "/root/project"
 REMOTE_REALTIME_ROOT = f"{REMOTE_PROJECT_ROOT}/real_time_mode"
 REMOTE_CACHE_ROOT = "/root/modal-cache"
+REMOTE_OUTPUT_ROOT = Path("/tmp/real_time_mode_outputs")
 
 
 image = (
@@ -32,6 +35,7 @@ image = (
         "opencv-python-headless==4.11.0.86",
         "pillow==12.1.0",
         "ultralytics==8.4.12",
+        "doclayout-yolo",
         "transformers==4.57.6",
         "huggingface_hub==0.36.2",
         "openai==2.32.0",
@@ -49,14 +53,20 @@ image = (
             "PYTHONPATH": REMOTE_PROJECT_ROOT,
             "HF_HOME": f"{REMOTE_CACHE_ROOT}/hf",
             "TRANSFORMERS_CACHE": f"{REMOTE_CACHE_ROOT}/hf",
-            "OCR_MODE": "cpu",
-            "FRAME_SUMMARIZER_ENABLED": "0",
+            "OCR_MODE": "gpu",
+            "FRAME_SUMMARIZER_ENABLED": "1",
+            "FRAME_SUMMARIZER_PROVIDER": "gemini",
+            "FRAME_SUMMARIZER_FALLBACK_MODEL": "Qwen/Qwen2.5-1.5B-Instruct",
+            "FRAME_SUMMARIZER_DEVICE": "disabled",
+            "FRAME_SUMMARIZER_MAX_NEW_TOKENS": "360",
+            "FRAME_SUMMARIZER_TEMPERATURE": "0.0",
             "CURSOR_MODEL_PATH": f"{REMOTE_REALTIME_ROOT}/cursor_class_best.pt",
             "MACRO_LAYOUT_MODEL_REF": f"{REMOTE_REALTIME_ROOT}/vendor/uitag/{UI_MODEL_FILENAME}",
             "MACRO_LAYOUT_MODEL_FILENAME": UI_MODEL_FILENAME,
-            "OMNIPARSER_REPO_DIR": f"{REMOTE_REALTIME_ROOT}/vendor/OmniParser",
-            "OMNIPARSER_WEIGHTS_DIR": f"{REMOTE_REALTIME_ROOT}/vendor/OmniParser/weights",
-            "OMNIPARSER_IMGSZ": "512",
+            "DOCLAYOUT_ENABLED": "1",
+            "DOCLAYOUT_REPO_ID": "juliozhao/DocLayout-YOLO-DocStructBench",
+            "DOCLAYOUT_FILENAME": "doclayout_yolo_docstructbench_imgsz1024.pt",
+            "DOCLAYOUT_IMGSZ": "1024",
         }
     )
     .add_local_dir(
@@ -215,9 +225,9 @@ class PipelineSessionManager:
         pipeline = DemoAnalyzerPipeline(
             siglip_classifier=runtime.siglip,
             stt_store=UtteranceStore(),
-            omniparser=runtime.omniparser,
             cursor_analyzer=CursorMotionAnalyzer(backend=runtime.cursor_backend),
             macro_layout_detector=runtime.macro_layout,
+            doclayout_detector=runtime.doclayout,
             ocr_extractor=runtime.ocr,
             slide_analyzer=runtime.slide,
             mode_router=runtime.router,
@@ -240,6 +250,7 @@ class PipelineSessionManager:
             transcript_window_sec=runtime.settings.transcript_window_sec,
             cursor_mask_padding_px=runtime.settings.cursor_mask_padding_px,
             debug_black_cursor_mask=runtime.settings.debug_black_cursor_mask,
+            summary_timeout_sec=runtime.settings.frame_summarizer_timeout_sec,
         )
         session = SessionRuntime(
             session_id=session_id,
@@ -356,9 +367,15 @@ class PipelineSessionManager:
                 raise HTTPException(status_code=400, detail="Decoded frame is empty.")
 
             timestamp = float(payload.get("timestamp", 0.0))
-            record = session.pipeline.ingest_frame(frame_bgr, timestamp_sec=timestamp)
-            self.mark_client_frame_completed(session, int(payload.get("client_frame_id") or 0))
-            stale, latest_frame_id = self.is_stale_client_frame(session, int(payload.get("client_frame_id") or 0))
+            client_frame_id = int(payload.get("client_frame_id") or 0)
+            session.pipeline.summary_skip_checker = lambda _state: self.is_stale_client_frame(session, client_frame_id)[0]
+            try:
+                record = session.pipeline.ingest_frame(frame_bgr, timestamp_sec=timestamp)
+            finally:
+                session.pipeline.summary_skip_checker = None
+            _write_session_outputs(session_id, record.to_dict())
+            self.mark_client_frame_completed(session, client_frame_id)
+            stale, latest_frame_id = self.is_stale_client_frame(session, client_frame_id)
             if stale:
                 return _stale_frame_response(payload, latest_frame_id)
         route = dict(record.confidence.get("route", {}))
@@ -386,10 +403,11 @@ class PipelineSessionManager:
             "summary": record.summary,
             "debug": {
                 "rfdetr_ran": bool(debug.get("rfdetr_ran", False)),
-                "macro_detector_ran": bool(debug.get("rfdetr_ran", False)),
+                "macro_detector_ran": bool(debug.get("macro_detector_ran", debug.get("rfdetr_ran", False))),
+                "doclayout_ran": bool(debug.get("doclayout_ran", False)),
                 "omniparser_ran": bool(debug.get("omniparser_ran", False)),
                 "surya_ran": bool(debug.get("processor_used") == "surya"),
-                "ocr_ran": bool(debug.get("processor_used") == "ocr"),
+                "ocr_ran": bool(debug.get("ocr_ran", debug.get("processor_used") == "ocr")),
                 "summary_provider": str(debug.get("summary_provider", "heuristic")),
                 "summary_model": str(debug.get("summary_model", "heuristic")),
                 "processing_time_ms": float(debug.get("processing_time_ms", 0.0)),
@@ -435,6 +453,32 @@ def get_shared_manager() -> PipelineSessionManager:
     if _shared_manager is None:
         _shared_manager = PipelineSessionManager()
     return _shared_manager
+
+
+def _write_session_outputs(session_id: str, record: Dict[str, Any]) -> None:
+    safe_id = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(session_id or "default")).strip("_") or "default"
+    out_dir = REMOTE_OUTPUT_ROOT / safe_id
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        analysis_path = out_dir / "analysis.json"
+        existing: List[Dict[str, Any]] = []
+        if analysis_path.exists():
+            try:
+                loaded = json.loads(analysis_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    existing = loaded
+            except Exception:
+                existing = []
+        existing.append(record)
+        analysis_path.write_text(json.dumps(existing[-200:], indent=2, ensure_ascii=False), encoding="utf-8")
+        results_md = str((record.get("visual_payload") or {}).get("results_md") or record.get("summary") or "").strip()
+        if results_md:
+            with (out_dir / "results.md").open("a", encoding="utf-8") as handle:
+                handle.write(f"\n\n<!-- frame {record.get('frame_id')} mode={record.get('mode')} t={record.get('timestamp_sec')} -->\n")
+                handle.write(results_md)
+                handle.write("\n")
+    except Exception:
+        return
 
 
 @app.function(

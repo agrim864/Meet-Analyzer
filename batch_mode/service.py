@@ -40,6 +40,8 @@ class BatchAnalysisResult:
     llm_output: Dict[str, Any]
     output_path: str
     profiling: Dict[str, Any]
+    pre_llm_output_path: str = ""
+    post_llm_output_path: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -52,6 +54,8 @@ class BatchAnalysisResult:
             "sections": self.sections,
             "llm_output": self.llm_output,
             "output_path": self.output_path,
+            "pre_llm_output_path": self.pre_llm_output_path,
+            "post_llm_output_path": self.post_llm_output_path,
             "profiling": self.profiling,
         }
 
@@ -390,6 +394,38 @@ class BatchMeetingAnalyzer:
                 self.pipeline.ingest_utterances(transcript)
             frame_events = self._profile_call("visual_analysis", lambda: self._process_video(video_path))
 
+        pre_llm_output_path = ""
+        if persist_artifacts:
+            pre_llm_profile = dict(self._profile)
+            pre_llm_profile["artifact_stage"] = "pre_llm"
+            pre_llm_profile["counts"] = {
+                "transcript_segments": len(transcript),
+                "frame_events": len(frame_events),
+                "topic_units": 0,
+                "topic_clusters": 0,
+            }
+            pre_llm_profile["visual"] = self._summarize_visual_profile(frame_events)
+            pre_llm_output_path = self._profile_call(
+                "persist_pre_llm_analysis",
+                lambda: self._persist_result(
+                    source=source,
+                    video_path=video_path,
+                    transcript=transcript,
+                    frame_events=frame_events,
+                    topic_units=[],
+                    topic_clusters=[],
+                    sections={},
+                    llm_output={
+                        "status": "not_started",
+                        "reason": "Saved before batch frame descriptions and report LLM generation.",
+                    },
+                    filename="analysis.json",
+                    artifact_stage="pre_llm",
+                    profile_override=pre_llm_profile,
+                    write_report=False,
+                ),
+            )
+
         should_describe_frames = self.settings.frame_descriptions_enabled if describe_frames is None else bool(describe_frames)
         if should_describe_frames:
             frame_description_writer = self._frame_writer_for_request(writer)
@@ -431,8 +467,8 @@ class BatchMeetingAnalyzer:
             "topic_clusters": len(topic_clusters),
         }
         self._profile["visual"] = self._summarize_visual_profile(frame_events)
-        output_path = self._profile_call(
-            "persist_result",
+        post_llm_output_path = self._profile_call(
+            "persist_post_llm_result",
             lambda: self._persist_result(
                 source=source,
                 video_path=video_path,
@@ -442,9 +478,13 @@ class BatchMeetingAnalyzer:
                 topic_clusters=topic_clusters,
                 sections=sections,
                 llm_output=llm_output,
+                filename="analysis_with_llm.json",
+                artifact_stage="post_llm",
+                write_report=True,
             ),
         ) if persist_artifacts else ""
         self._profile["total_elapsed_sec"] = round(perf_counter() - started, 3)
+        output_path = post_llm_output_path or pre_llm_output_path
         return BatchAnalysisResult(
             source=source,
             resolved_video_path=video_path,
@@ -455,6 +495,8 @@ class BatchMeetingAnalyzer:
             sections=sections,
             llm_output=llm_output,
             output_path=output_path,
+            pre_llm_output_path=pre_llm_output_path,
+            post_llm_output_path=post_llm_output_path,
             profiling=dict(self._profile),
         )
 
@@ -712,6 +754,10 @@ class BatchMeetingAnalyzer:
         topic_clusters: List[Dict[str, Any]],
         sections: Dict[str, Any],
         llm_output: Dict[str, Any],
+        filename: str = "analysis_with_llm.json",
+        artifact_stage: str = "post_llm",
+        profile_override: Optional[Dict[str, Any]] = None,
+        write_report: bool = True,
     ) -> str:
         base = Path(self.settings.batch_output_dir)
         base.mkdir(parents=True, exist_ok=True)
@@ -727,12 +773,14 @@ class BatchMeetingAnalyzer:
             "topic_clusters": topic_clusters,
             "sections": sections,
             "llm_output": llm_output,
+            "artifact_stage": artifact_stage,
         }
-        output_path = out_dir / "analysis.json"
-        bundle["profiling"] = dict(self._profile)
+        output_path = out_dir / filename
+        bundle["profiling"] = dict(profile_override or self._profile)
         output_path.write_text(json.dumps(bundle, ensure_ascii=True, indent=2), encoding="utf-8")
-        markdown_path = out_dir / "report.md"
-        markdown_path.write_text(str(llm_output.get("final_markdown", "")), encoding="utf-8")
+        if write_report:
+            markdown_path = out_dir / "report.md"
+            markdown_path.write_text(str(llm_output.get("final_markdown", "")), encoding="utf-8")
         return str(output_path)
 
     def _profile_call(self, name: str, func):

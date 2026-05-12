@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import base64
+import json
+import logging
 import os
+import re
 import sys
 import threading
 import time
@@ -26,6 +29,10 @@ from real_time_mode.factory import build_frame_summarizer, build_runtime_compone
 from real_time_mode.frame_summarizer import FrameSummaryRequest
 from real_time_mode.pipeline import DemoAnalyzerPipeline
 from real_time_mode.stt_adapter import DeepgramSTTAdapter, UtteranceStore
+
+
+LIVE_OUTPUT_ROOT = Path(__file__).resolve().parent / "live_outputs"
+logger = logging.getLogger(__name__)
 
 
 def _load_env() -> None:
@@ -217,9 +224,9 @@ class PipelineSessionManager:
         return DemoAnalyzerPipeline(
             siglip_classifier=runtime.siglip,
             stt_store=UtteranceStore(),
-            omniparser=runtime.omniparser,
             cursor_analyzer=CursorMotionAnalyzer(backend=runtime.cursor_backend),
             macro_layout_detector=runtime.macro_layout,
+            doclayout_detector=runtime.doclayout,
             ocr_extractor=runtime.ocr,
             slide_analyzer=runtime.slide,
             mode_router=runtime.router,
@@ -242,6 +249,7 @@ class PipelineSessionManager:
             transcript_window_sec=runtime.settings.transcript_window_sec,
             cursor_mask_padding_px=runtime.settings.cursor_mask_padding_px,
             debug_black_cursor_mask=runtime.settings.debug_black_cursor_mask,
+            summary_timeout_sec=runtime.settings.frame_summarizer_timeout_sec,
         )
 
     def start_session(self, session_id: str, title: Optional[str]) -> SessionRuntime:
@@ -313,7 +321,12 @@ class PipelineSessionManager:
                 session.seen_transcript_keys.add(transcript_key)
 
             frame_bgr = _decode_base64_jpeg(payload.frame_jpeg_base64)
-            record = session.pipeline.ingest_frame(frame_bgr, timestamp_sec=float(payload.timestamp))
+            session.pipeline.summary_skip_checker = lambda _state: self.is_stale_client_frame(session, payload.client_frame_id)[0]
+            try:
+                record = session.pipeline.ingest_frame(frame_bgr, timestamp_sec=float(payload.timestamp))
+            finally:
+                session.pipeline.summary_skip_checker = None
+            _write_session_outputs(payload.session_id, record.to_dict())
             self.mark_client_frame_completed(session, payload.client_frame_id)
             stale, latest_frame_id = self.is_stale_client_frame(session, payload.client_frame_id)
             if stale:
@@ -342,10 +355,11 @@ class PipelineSessionManager:
             "summary": record.summary,
             "debug": {
                 "rfdetr_ran": bool(debug.get("rfdetr_ran", False)),
-                "macro_detector_ran": bool(debug.get("rfdetr_ran", False)),
+                "macro_detector_ran": bool(debug.get("macro_detector_ran", debug.get("rfdetr_ran", False))),
+                "doclayout_ran": bool(debug.get("doclayout_ran", False)),
                 "omniparser_ran": bool(debug.get("omniparser_ran", False)),
                 "surya_ran": bool(debug.get("processor_used") == "surya"),
-                "ocr_ran": bool(debug.get("processor_used") == "ocr"),
+                "ocr_ran": bool(debug.get("ocr_ran", debug.get("processor_used") == "ocr")),
                 "summary_provider": str(debug.get("summary_provider", "heuristic")),
                 "summary_model": str(debug.get("summary_model", "heuristic")),
                 "processing_time_ms": float(debug.get("processing_time_ms", 0.0)),
@@ -422,6 +436,42 @@ def _decode_base64_bytes(payload_b64: str) -> bytes:
         raise HTTPException(status_code=400, detail=f"Invalid audio payload: {type(exc).__name__}: {exc}") from exc
 
 
+def _is_recoverable_transcript_error(message: str) -> bool:
+    text = str(message or "")
+    permanent_patterns = [
+        "DEEPGRAM_API_KEY",
+        "api key",
+        "unauthorized",
+        "forbidden",
+        "401",
+        "403",
+        "quota",
+        "billing",
+    ]
+    if any(pattern.lower() in text.lower() for pattern in permanent_patterns):
+        return False
+    recoverable_patterns = [
+        "ffmpeg",
+        "invalid data",
+        "audio",
+        "decode",
+        "empty",
+        "bad request",
+        "400",
+        "timeout",
+        "connection",
+        "temporarily",
+    ]
+    return any(pattern in text.lower() for pattern in recoverable_patterns)
+
+
+def _compact_error(message: str, limit: int = 700) -> str:
+    text = re.sub(r"\s+", " ", str(message or "")).strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rstrip() + "..."
+
+
 def _encode_jpeg_data_url(frame_bgr: np.ndarray, *, quality: int = 80) -> str:
     success, encoded = cv2.imencode(".jpg", frame_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), int(quality)])
     if not success:
@@ -486,6 +536,7 @@ def _annotate_response_frame(frame_bgr: np.ndarray, response_json: Dict[str, Any
     annotated = frame_bgr.copy()
     macro_layout = list(visual_payload.get("macro_layout") or [])
     micro_elements = list(visual_payload.get("micro_elements") or [])
+    doclayout_elements = list(visual_payload.get("doclayout_elements") or [])
     cursor = dict(response_json.get("cursor") or {})
     max_labeled_micro = 120
     for index, item in enumerate(micro_elements, start=1):
@@ -496,6 +547,17 @@ def _annotate_response_frame(frame_bgr: np.ndarray, response_json: Dict[str, Any
         if index <= max_labeled_micro:
             label = f"u{index}:{_safe_label(item.get('text') or item.get('caption') or item.get('type'), f'e{index}')}"
         _draw_labeled_box(annotated, box, (0, 220, 120), label, thickness=1)
+    for index, item in enumerate(doclayout_elements[:80], start=1):
+        box = item.get("bbox")
+        if not box or len(box) < 4:
+            continue
+        _draw_labeled_box(
+            annotated,
+            box,
+            (180, 80, 255),
+            f"D{index}:{_safe_label(item.get('type'), 'layout')}",
+            thickness=2,
+        )
     for index, item in enumerate(macro_layout[:20], start=1):
         confidence = item.get("confidence")
         confidence_suffix = ""
@@ -522,6 +584,34 @@ def _annotate_response_frame(frame_bgr: np.ndarray, response_json: Dict[str, Any
             hx, hy = int(round(hotspot[0])), int(round(hotspot[1]))
             cv2.circle(annotated, (hx, hy), 5, (80, 120, 255), -1)
     return _encode_jpeg_data_url(annotated, quality=78)
+
+
+def _write_session_outputs(session_id: str, record: Dict[str, Any]) -> None:
+    safe_id = re.sub(r"[^a-zA-Z0-9_.-]+", "_", str(session_id or "default")).strip("_") or "default"
+    out_dir = LIVE_OUTPUT_ROOT / safe_id
+    try:
+        out_dir.mkdir(parents=True, exist_ok=True)
+        analysis_path = out_dir / "analysis.json"
+        existing: List[Dict[str, Any]] = []
+        if analysis_path.exists():
+            try:
+                loaded = json.loads(analysis_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, list):
+                    existing = loaded
+            except Exception:
+                existing = []
+        existing.append(record)
+        analysis_path.write_text(json.dumps(existing[-200:], indent=2, ensure_ascii=False), encoding="utf-8")
+        results_md = str((record.get("visual_payload") or {}).get("results_md") or record.get("summary") or "").strip()
+        if results_md:
+            results_path = out_dir / "results.md"
+            heading = f"\n\n<!-- frame {record.get('frame_id')} mode={record.get('mode')} t={record.get('timestamp_sec')} -->\n"
+            with results_path.open("a", encoding="utf-8") as handle:
+                handle.write(heading)
+                handle.write(results_md)
+                handle.write("\n")
+    except Exception as exc:
+        logger.warning("Failed to write live outputs for session=%s: %s", session_id, exc)
 
 
 def _transcript_text_from_response(response_json: Dict[str, Any]) -> str:
@@ -670,10 +760,14 @@ def frontend_config() -> Dict[str, Any]:
         "supabaseAnonKey": os.getenv("VITE_SUPABASE_ANON_KEY", "").strip(),
         "deepgramProxyUrl": os.getenv("VITE_DEEPGRAM_PROXY_URL", "").strip(),
         "enableDebugJson": os.getenv("VITE_ENABLE_DEBUG_JSON", "true").strip().lower() in {"1", "true", "yes"},
-        "captureMaxSide": int(os.getenv("VITE_CAPTURE_MAX_SIDE", "512")),
-        "frameJpegQuality": float(os.getenv("VITE_FRAME_JPEG_QUALITY", "0.46")),
+        "captureMaxSide": int(os.getenv("VITE_CAPTURE_MAX_SIDE", "1920")),
+        "frameJpegQuality": float(os.getenv("VITE_FRAME_JPEG_QUALITY", "0.58")),
         "maxInFlightFrames": int(os.getenv("VITE_MAX_IN_FLIGHT_FRAMES", "2")),
         "fullFrameChangeRatio": float(os.getenv("VITE_FULL_FRAME_CHANGE_RATIO", "0.55")),
+        "supersedeInFlightChangeRatio": float(os.getenv("VITE_SUPERSEDE_IN_FLIGHT_CHANGE_RATIO", "0.10")),
+        "frameRequestTimeoutMs": int(os.getenv("VITE_FRAME_REQUEST_TIMEOUT_MS", "120000")),
+        "minTranscriptBlobBytes": int(os.getenv("VITE_MIN_TRANSCRIPT_BLOB_BYTES", "2048")),
+        "transcriptMaxConsecutiveErrors": int(os.getenv("VITE_TRANSCRIPT_MAX_CONSECUTIVE_ERRORS", "4")),
         "frameIntervalsMs": {
             "demo": int(os.getenv("VITE_FRAME_INTERVAL_DEMO_MS", "300")),
             "code": int(os.getenv("VITE_FRAME_INTERVAL_CODE_MS", "450")),
@@ -702,21 +796,39 @@ def transcribe_audio(payload: AudioTranscribeRequest) -> JSONResponse:
                     raise RuntimeError(f"Modal returned {response.status_code}: {response.text}")
                 return JSONResponse(response.json())
             except Exception as modal_exc:
+                modal_error = f"{type(modal_exc).__name__}: {modal_exc}"
+                combined_error = (
+                    f"Local transcription failed: {local_error}. "
+                    f"Modal fallback failed: {modal_error}"
+                )
+                if _is_recoverable_transcript_error(combined_error):
+                    return JSONResponse(
+                        {
+                            "session_id": payload.session_id,
+                            "chunks": [],
+                            "transcript_warning": _compact_error(combined_error),
+                        }
+                    )
                 return JSONResponse(
                     {
                         "session_id": payload.session_id,
                         "chunks": [],
-                        "transcript_error": (
-                            f"Local transcription failed: {local_error}. "
-                            f"Modal fallback failed: {type(modal_exc).__name__}: {modal_exc}"
-                        ),
+                        "transcript_error": _compact_error(combined_error),
                     }
                 )
+        if _is_recoverable_transcript_error(local_error):
+            return JSONResponse(
+                {
+                    "session_id": payload.session_id,
+                    "chunks": [],
+                    "transcript_warning": _compact_error(f"Local transcription skipped this audio chunk: {local_error}"),
+                }
+            )
         return JSONResponse(
             {
                 "session_id": payload.session_id,
                 "chunks": [],
-                "transcript_error": f"Local transcription failed: {local_error}",
+                "transcript_error": _compact_error(f"Local transcription failed: {local_error}"),
             }
         )
 

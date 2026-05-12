@@ -107,6 +107,7 @@ function App() {
   const [latestFrameEvent, setLatestFrameEvent] = useState(null);
   const [latestModalResponse, setLatestModalResponse] = useState(null);
   const [latestChangeDebug, setLatestChangeDebug] = useState(null);
+  const [framesSubmitted, setFramesSubmitted] = useState(0);
   const [framesSent, setFramesSent] = useState(0);
   const [framesSkipped, setFramesSkipped] = useState(0);
   const [framesQueued, setFramesQueued] = useState(0);
@@ -149,6 +150,7 @@ function App() {
   const pendingFrameRef = useRef(null);
   const transcriptBusyRef = useRef(false);
   const transcriptDisabledRef = useRef(false);
+  const transcriptErrorCountRef = useRef(0);
   const pendingTranscriptBlobRef = useRef(null);
   const transcriptChunkIntervalRef = useRef(null);
   const transcriptRestartTimeoutRef = useRef(null);
@@ -231,6 +233,8 @@ function App() {
 
   const maxInFlightFrames = Math.max(1, Number(config?.maxInFlightFrames || 2));
   const fullFrameChangeRatio = Math.max(0.10, Number(config?.fullFrameChangeRatio || 0.55));
+  const supersedeInFlightChangeRatio = Math.max(0.02, Number(config?.supersedeInFlightChangeRatio || 0.10));
+  const frameRequestTimeoutMs = Math.max(30000, Number(config?.frameRequestTimeoutMs || 120000));
 
   async function insertSupabase(table, row, method = "POST", filters = "") {
     const runtimeConfig = configRef.current;
@@ -259,6 +263,20 @@ function App() {
     if (workerRef.current) {
       workerRef.current.postMessage({ type: "reset", payload: { mode } });
     }
+  }
+
+  function resetFrameCounters() {
+    setFramesSubmitted(0);
+    setFramesSent(0);
+    setFramesSkipped(0);
+    setFramesQueued(0);
+    setFramesDropped(0);
+    setPendingFrameCount(0);
+    setLatestFrameGapMs(null);
+    setLatestAnalysisLagMs(null);
+    setLatestChangeDebug(null);
+    setLatestModalResponse(null);
+    setLatestFrameEvent(null);
   }
 
   function runDiff(imageData, mode) {
@@ -388,6 +406,10 @@ function App() {
     if (!blob || !blob.size || !sessionIdRef.current) {
       return;
     }
+    const minBytes = Math.max(512, Number(configRef.current?.minTranscriptBlobBytes || 2048));
+    if (blob.size < minBytes) {
+      return;
+    }
     if (transcriptDisabledRef.current) {
       return;
     }
@@ -413,13 +435,26 @@ function App() {
       }
       const payload = await response.json();
       if (payload?.transcript_error) {
-        transcriptDisabledRef.current = true;
+        const message = String(payload.transcript_error || "Transcript processing failed.");
+        transcriptErrorCountRef.current += 1;
+        const maxErrors = Math.max(1, Number(configRef.current?.transcriptMaxConsecutiveErrors || 4));
+        const permanent = /api[_ -]?key|required|unauthorized|forbidden|401|403|quota|billing/i.test(message);
+        if (permanent || transcriptErrorCountRef.current >= maxErrors) {
+          transcriptDisabledRef.current = true;
+          setMicStatus("transcript unavailable");
+          setErrorMessage(message);
+        } else {
+          setMicStatus("transcript retrying");
+        }
         pendingTranscriptBlobRef.current = null;
-        setMicStatus("transcript unavailable");
-        setErrorMessage(String(payload.transcript_error));
+        return;
+      }
+      if (payload?.transcript_warning) {
+        setMicStatus("listening");
         return;
       }
       const chunks = Array.isArray(payload?.chunks) ? payload.chunks.filter((item) => item?.text) : [];
+      transcriptErrorCountRef.current = 0;
       if (chunks.length) {
         setTranscriptHistory((prev) => {
           return mergeTranscriptChunks(prev, chunks);
@@ -445,8 +480,14 @@ function App() {
       }
       setMicStatus("listening");
     } catch (err) {
-      setMicStatus("error");
-      setErrorMessage(`Transcript processing failed: ${err.message}`);
+      transcriptErrorCountRef.current += 1;
+      const maxErrors = Math.max(1, Number(configRef.current?.transcriptMaxConsecutiveErrors || 4));
+      if (transcriptErrorCountRef.current >= maxErrors) {
+        setMicStatus("error");
+        setErrorMessage(`Transcript processing failed: ${err.message}`);
+      } else {
+        setMicStatus("transcript retrying");
+      }
     } finally {
       transcriptBusyRef.current = false;
       const pending = pendingTranscriptBlobRef.current;
@@ -468,7 +509,8 @@ function App() {
         const recorder = new MediaRecorder(audioStream, { mimeType });
         mediaRecorderRef.current = recorder;
         recorder.ondataavailable = (event) => {
-          if (event.data && event.data.size > 0) {
+          const minBytes = Math.max(512, Number(configRef.current?.minTranscriptBlobBytes || 2048));
+          if (event.data && event.data.size >= minBytes) {
             flushTranscriptBlob(event.data);
           }
         };
@@ -600,7 +642,9 @@ function App() {
   function queueLatestFrame(payload, changedDebug, mode) {
     const replacingQueuedFrame = Boolean(pendingFrameRef.current);
     pendingFrameRef.current = { payload, changedDebug, mode };
-    setFramesQueued((value) => value + 1);
+    if (!replacingQueuedFrame) {
+      setFramesQueued((value) => value + 1);
+    }
     setPendingFrameCount(1);
     if (replacingQueuedFrame) {
       setFramesSkipped((value) => value + 1);
@@ -618,6 +662,9 @@ function App() {
   function abortInFlightFrames() {
     inFlightFramesRef.current.forEach((request) => {
       try {
+        if (request.timeoutId) {
+          clearTimeout(request.timeoutId);
+        }
         request.controller.abort();
       } catch (_) {}
     });
@@ -629,6 +676,9 @@ function App() {
     inFlightFramesRef.current.forEach((request, requestFrameId) => {
       if (Number(requestFrameId) < Number(frameId)) {
         try {
+          if (request.timeoutId) {
+            clearTimeout(request.timeoutId);
+          }
           request.controller.abort();
         } catch (_) {}
         inFlightFramesRef.current.delete(requestFrameId);
@@ -639,6 +689,30 @@ function App() {
       setFramesDropped((value) => value + aborted);
       updateFrameProcessingState();
     }
+  }
+
+  function abortOldestInFlightFrame() {
+    let oldestFrameId = null;
+    let oldestRequest = null;
+    inFlightFramesRef.current.forEach((request, requestFrameId) => {
+      if (!oldestRequest || Number(request.startedAt || 0) < Number(oldestRequest.startedAt || 0)) {
+        oldestFrameId = requestFrameId;
+        oldestRequest = request;
+      }
+    });
+    if (!oldestRequest) {
+      return false;
+    }
+    try {
+      if (oldestRequest.timeoutId) {
+        clearTimeout(oldestRequest.timeoutId);
+      }
+      oldestRequest.controller.abort();
+    } catch (_) {}
+    inFlightFramesRef.current.delete(oldestFrameId);
+    setFramesDropped((value) => value + 1);
+    updateFrameProcessingState();
+    return true;
   }
 
   function flushQueuedFrame() {
@@ -657,19 +731,34 @@ function App() {
   async function dispatchFramePayload(payload, changedDebug, mode) {
     const frameId = Number(payload.client_frame_id || 0);
     const isFullFrameChange = Number(payload.client_change?.changed_pixel_ratio || 0) >= fullFrameChangeRatio;
-    if (isFullFrameChange && frameId > 0) {
-      abortOlderInFlightFrames(frameId);
-    }
-    if (inFlightFramesRef.current.size >= maxInFlightFrames) {
+    const isSupersedingChange = Number(payload.client_change?.changed_pixel_ratio || 0) >= supersedeInFlightChangeRatio;
+    const hasCompletedAnalysis = latestAppliedFrameIdRef.current > 0;
+    if (!hasCompletedAnalysis && inFlightFramesRef.current.size > 0) {
       queueLatestFrame(payload, changedDebug, mode);
       return;
     }
+    if (hasCompletedAnalysis && (isFullFrameChange || isSupersedingChange) && frameId > 0) {
+      abortOlderInFlightFrames(frameId);
+    }
+    if (inFlightFramesRef.current.size >= maxInFlightFrames) {
+      const freedSlot = hasCompletedAnalysis && isSupersedingChange ? abortOldestInFlightFrame() : false;
+      if (!freedSlot && inFlightFramesRef.current.size >= maxInFlightFrames) {
+        queueLatestFrame(payload, changedDebug, mode);
+        return;
+      }
+    }
     const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+      try {
+        controller.abort();
+      } catch (_) {}
+    }, frameRequestTimeoutMs);
     if (frameId > 0) {
-      inFlightFramesRef.current.set(frameId, { controller, startedAt: performance.now() });
+      inFlightFramesRef.current.set(frameId, { controller, startedAt: performance.now(), timeoutId });
     }
     updateFrameProcessingState();
     setModalStatus("processing");
+    setFramesSubmitted((value) => value + 1);
     try {
       const response = await fetch(configRef.current?.modalProcessFrameUrl || "/api/process-frame", {
         method: "POST",
@@ -739,6 +828,10 @@ function App() {
       setErrorMessage(`Frame processing failed: ${err.message}`);
     } finally {
       if (frameId > 0) {
+        const request = inFlightFramesRef.current.get(frameId);
+        if (request?.timeoutId) {
+          clearTimeout(request.timeoutId);
+        }
         inFlightFramesRef.current.delete(frameId);
       }
       updateFrameProcessingState();
@@ -750,6 +843,7 @@ function App() {
     const id = sessionId || crypto.randomUUID();
     let stream = null;
     let audioStream = null;
+    resetFrameCounters();
     setSessionId(id);
     setSessionStatus("starting");
     setCaptureStatus("requesting permission");
@@ -793,7 +887,7 @@ function App() {
       setIsSessionActive(true);
       setSessionStatus("warming");
       setModalStatus("warming");
-      setWarmupDetails("Warming SigLIP, cursor, OCR, slide analysis, OmniParser, and Deepgram...");
+      setWarmupDetails("Warming SigLIP, cursor, OCR, YOLO layout, slide analysis, LLM summarizer, and Deepgram...");
 
       const warmResponse = await fetch("/api/warmup/start", { method: "POST" });
       if (!warmResponse.ok) {
@@ -1057,13 +1151,29 @@ function App() {
     lowCanvas.height = 180;
     lowCtx.drawImage(video, 0, 0, lowCanvas.width, lowCanvas.height);
     const imageData = lowCtx.getImageData(0, 0, lowCanvas.width, lowCanvas.height);
-    const diff = await runDiff(imageData, mode);
+    let diff = await runDiff(imageData, mode);
+    const needsBootstrapFrame = (
+      latestAppliedFrameIdRef.current === 0 &&
+      inFlightFramesRef.current.size === 0 &&
+      !pendingFrameRef.current
+    );
+    if (!diff.changed && needsBootstrapFrame) {
+      diff = {
+        ...diff,
+        changed: true,
+        changedPixelRatio: 1,
+        changedBboxes: [[0, 0, lowCanvas.width, lowCanvas.height]],
+        mergedChangedBbox: [0, 0, lowCanvas.width, lowCanvas.height],
+        bootstrapRetry: true,
+      };
+    }
 
     const changedDebug = {
       frameTimestamp: Date.now() / 1000,
       changed: diff.changed,
       changedPixelRatio: diff.changedPixelRatio,
       changedBboxes: diff.changedBboxes,
+      bootstrapRetry: Boolean(diff.bootstrapRetry),
       mergedChangedBbox: diff.mergedChangedBbox
         ? scaleBbox(diff.mergedChangedBbox, lowCanvas.width, lowCanvas.height, targetWidth, targetHeight)
         : null,
@@ -1105,8 +1215,9 @@ function App() {
     };
     changedDebug.clientFrameId = clientFrameId;
     changedDebug.fullFrameChange = diff.changedPixelRatio >= fullFrameChangeRatio;
+    changedDebug.supersedingChange = diff.changedPixelRatio >= supersedeInFlightChangeRatio;
 
-    if (changedDebug.fullFrameChange) {
+    if (latestAppliedFrameIdRef.current > 0 && (changedDebug.fullFrameChange || changedDebug.supersedingChange)) {
       abortOlderInFlightFrames(clientFrameId);
     }
 
@@ -1178,7 +1289,8 @@ function App() {
           <div className="debug-grid">
             {[
               ["Current mode", currentMode],
-              ["Frames sent", framesSent],
+              ["Frames submitted", framesSubmitted],
+              ["Frames completed", framesSent],
               ["Queued updates", framesQueued],
               ["Pending queue", pendingFrameCount],
               ["Dropped stale", framesDropped],
@@ -1303,7 +1415,7 @@ function App() {
           <div className="mini-panel">
             <h3>Latest Combined Summary</h3>
             <div className="timestamp">LLM: {latestSummary.provider} / {latestSummary.model}</div>
-            <div>{latestSummary.text}</div>
+            <div className="summary-text">{latestSummary.text}</div>
             {latestSummary.detail ? (
               <div className="timestamp" style={{ marginTop: 8 }}>
                 {latestSummary.detail}
@@ -1357,13 +1469,15 @@ function App() {
             <div className="list">
               <div className="list-item"><strong>Processor:</strong> <span className="mono">{latestModalResponse?.processor_used || "--"}</span></div>
               <div className="list-item"><strong>Macro detector ran:</strong> {String((latestModalResponse?.debug?.macro_detector_ran ?? latestModalResponse?.debug?.rfdetr_ran) || false)}</div>
-              <div className="list-item"><strong>OmniParser ran:</strong> {String(latestModalResponse?.debug?.omniparser_ran || false)}</div>
+              <div className="list-item"><strong>YOLO layout ran:</strong> {String(latestModalResponse?.debug?.macro_detector_ran || false)}</div>
+              <div className="list-item"><strong>DocLayout ran:</strong> {String(latestModalResponse?.debug?.doclayout_ran || false)}</div>
               <div className="list-item"><strong>Surya ran:</strong> {String(latestModalResponse?.debug?.surya_ran || false)}</div>
               <div className="list-item"><strong>OCR ran:</strong> {String(latestModalResponse?.debug?.ocr_ran || false)}</div>
               <div className="list-item"><strong>Processing time:</strong> {latestModalResponse?.debug?.processing_time_ms?.toFixed?.(1) ?? "--"} ms</div>
               <div className="list-item"><strong>Endpoint total:</strong> <span className="mono">{formatMs(latestTimings.endpoint_total_ms)}</span></div>
               <div className="list-item"><strong>Proxy:</strong> <span className="mono">{formatMs(latestTimings.modal_proxy_ms)}</span></div>
-              <div className="list-item"><strong>Macro / Omni:</strong> <span className="mono">{formatMs(latestTimings.macro_layout_ms)} / {formatMs(latestTimings.omniparser_ms)}</span></div>
+              <div className="list-item"><strong>Macro / OCR:</strong> <span className="mono">{formatMs(latestTimings.macro_layout_ms)} / {formatMs(latestTimings.ocr_ms)}</span></div>
+              <div className="list-item"><strong>DocLayout:</strong> <span className="mono">{formatMs(latestTimings.doclayout_ms)}</span></div>
               <div className="list-item"><strong>Summary / Annotation:</strong> <span className="mono">{formatMs(latestTimings.summary_ms)} / {formatMs(latestTimings.annotation_ms)}</span></div>
             </div>
           </div>

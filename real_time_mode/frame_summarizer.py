@@ -159,26 +159,7 @@ class LocalTransformersFrameSummarizer(BaseFrameSummarizer):
             return tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
 
     def _build_prompt(self, request: FrameSummaryRequest) -> str:
-        memory = [item.to_prompt_dict() for item in request.recent_memory[-8:]]
-        payload = {
-            "time": round(float(request.timestamp_sec), 2),
-            "mode": request.mode,
-            "transcript_text": request.transcript_text,
-            "cursor_text": request.cursor_text,
-            "page_text": request.page_text,
-            "action_text": request.action_text,
-            "visual_payload": request.current_payload,
-            "recent_memory": memory,
-            "heuristic_summary": request.heuristic_summary,
-        }
-        return (
-            "You summarize a live meeting screen state.\n"
-            "Write one short sentence about what happened on screen and what the user likely did.\n"
-            "Use the cursor and transcript when helpful. Preserve continuity with recent memory.\n"
-            "Do not mention uncertainty unless necessary. Do not output bullets or JSON.\n\n"
-            f"STATE:\n{json.dumps(payload, ensure_ascii=True)}\n\n"
-            "SUMMARY:"
-        )
+        return _build_detailed_screen_prompt(request)
 
     @staticmethod
     def _clean_summary(text: str) -> str:
@@ -186,8 +167,7 @@ class LocalTransformersFrameSummarizer(BaseFrameSummarizer):
         if "SUMMARY:" in cleaned:
             cleaned = cleaned.split("SUMMARY:", 1)[-1].strip()
         cleaned = cleaned.replace("<think>", "").replace("</think>", "").strip()
-        first_line = cleaned.splitlines()[0].strip() if cleaned else ""
-        return first_line[:500]
+        return cleaned[:2400]
 
 
 class GeminiFrameSummarizer(BaseFrameSummarizer):
@@ -275,49 +255,7 @@ class GeminiFrameSummarizer(BaseFrameSummarizer):
         return ""
 
     def _build_prompt(self, request: FrameSummaryRequest) -> str:
-        macro_layout = request.current_payload.get("macro_layout") or []
-        macro_types = [
-            str(item.get("type") or item.get("label") or "").strip()
-            for item in macro_layout
-            if str(item.get("type") or item.get("label") or "").strip()
-        ]
-        micro_elements = request.current_payload.get("micro_elements") or []
-        cursor_target = request.current_payload.get("cursor_target") or {}
-        highlights = _collect_micro_highlights(micro_elements, limit=8)
-        payload = {
-            "time": round(float(request.timestamp_sec), 2),
-            "mode": request.mode,
-            "transcript_text": request.transcript_text,
-            "cursor_text": request.cursor_text,
-            "page_text": request.page_text,
-            "action_text": request.action_text,
-            "page_summary": request.current_payload.get("page_summary"),
-            "change_type": request.current_payload.get("change_type"),
-            "changed_bbox": request.current_payload.get("changed_bbox"),
-            "macro_types": macro_types,
-            "micro_element_count": len(micro_elements),
-            "top_micro_elements": highlights,
-            "cursor_target": {
-                "micro": cursor_target.get("element_text") or cursor_target.get("element_type"),
-                "macro": cursor_target.get("parent_macro_region_type"),
-                "relation": cursor_target.get("relation"),
-            },
-            "heuristic_summary": request.heuristic_summary,
-        }
-        return (
-            "You summarize the current state of a live meeting screen.\n"
-            "Write 2 or 3 concise sentences.\n"
-            "Sentence 1: clearly name what app, page, panel, editor, or UI content is visible and what changed.\n"
-            "Sentence 2: summarize what the speaker said, if any transcript is present.\n"
-            "Sentence 3: say where the cursor is, including the micro element and macro region if available.\n"
-            "Use only the current state below. Ignore older memory and do not mention missing context.\n"
-            "Be specific. Prefer concrete UI names, visible controls, panel names, change type, and cursor target.\n"
-            "Do not say generic phrases like 'main content' unless that is all you truly know.\n"
-            "Ignore gibberish labels, SVG path fragments, raw coordinates, and duplicated words.\n"
-            "Do not use bullets, JSON, markdown headings, or chain-of-thought.\n\n"
-            f"STATE:\n{json.dumps(payload, ensure_ascii=True)}\n\n"
-            "FINAL SUMMARY:"
-        )
+        return _build_detailed_screen_prompt(request)
 
     @staticmethod
     def _clean_summary(text: str) -> str:
@@ -326,7 +264,257 @@ class GeminiFrameSummarizer(BaseFrameSummarizer):
             cleaned = cleaned.split("FINAL SUMMARY:", 1)[-1].strip()
         cleaned = cleaned.replace("<think>", "").replace("</think>", "").strip()
         cleaned = cleaned.replace("<answer>", "").replace("</answer>", "").strip()
-        return cleaned[:700]
+        return cleaned[:2400]
+
+
+class OpenAICompatibleFrameSummarizer(BaseFrameSummarizer):
+    def __init__(
+        self,
+        *,
+        provider_name: str,
+        api_key: str,
+        model_name: str,
+        endpoint: str,
+        max_output_tokens: int = 700,
+        temperature: float = 0.1,
+        timeout_sec: float = 8.0,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ) -> None:
+        self.provider_name = str(provider_name or "openai_compatible").strip()
+        self.api_key = str(api_key or "").strip()
+        self.model_name = str(model_name or "").strip()
+        self.endpoint = str(endpoint or "").strip()
+        self.max_output_tokens = int(max_output_tokens)
+        self.temperature = float(temperature)
+        self.timeout_sec = float(timeout_sec)
+        self.extra_headers = dict(extra_headers or {})
+
+    def warmup(self) -> None:
+        if not self.api_key:
+            raise RuntimeError(f"{self.provider_name} API key is not configured.")
+        if not self.model_name:
+            raise RuntimeError(f"{self.provider_name} model is not configured.")
+
+    def summarize(self, request: FrameSummaryRequest) -> str:
+        self.warmup()
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+            **self.extra_headers,
+        }
+        payload = {
+            "model": self.model_name,
+            "messages": [
+                {
+                    "role": "system",
+                    "content": (
+                        "You produce detailed, factual screen-understanding notes for a realtime meeting analyzer. "
+                        "Use only supplied evidence and do not include hidden reasoning."
+                    ),
+                },
+                {"role": "user", "content": _build_detailed_screen_prompt(request)},
+            ],
+            "temperature": self.temperature,
+            "max_tokens": self.max_output_tokens,
+        }
+        response = requests.post(self.endpoint, headers=headers, json=payload, timeout=self.timeout_sec)
+        response.raise_for_status()
+        data = response.json()
+        choices = data.get("choices") or []
+        for choice in choices:
+            message = choice.get("message") or {}
+            text = str(message.get("content") or "").strip()
+            if text:
+                return self._clean_summary(text) or request.heuristic_summary
+        return request.heuristic_summary
+
+    @staticmethod
+    def _clean_summary(text: str) -> str:
+        cleaned = str(text or "").strip()
+        for marker in ("DETAILED DESCRIPTION:", "FINAL SUMMARY:", "SUMMARY:"):
+            if marker in cleaned:
+                cleaned = cleaned.split(marker, 1)[-1].strip()
+        cleaned = cleaned.replace("<think>", "").replace("</think>", "").strip()
+        cleaned = cleaned.replace("<answer>", "").replace("</answer>", "").strip()
+        return cleaned[:3600]
+
+
+class CascadingFrameSummarizer(BaseFrameSummarizer):
+    def __init__(self, summarizers: Sequence[BaseFrameSummarizer]) -> None:
+        self.summarizers = [item for item in summarizers if item is not None]
+        self.last_error = ""
+        self.provider_name = "cascade"
+        self.model_name = ",".join(getattr(item, "model_name", getattr(item, "provider_name", "")) for item in self.summarizers)
+
+    def warmup(self) -> None:
+        for summarizer in self.summarizers:
+            try:
+                summarizer.warmup()
+                self.last_error = ""
+                return
+            except Exception as exc:
+                self.last_error = f"{getattr(summarizer, 'provider_name', 'unknown')}: {type(exc).__name__}: {exc}"
+        if self.summarizers:
+            logger.warning("No cascade summarizer warmed successfully: %s", self.last_error)
+
+    def summarize(self, request: FrameSummaryRequest) -> str:
+        last_error = ""
+        for summarizer in self.summarizers:
+            try:
+                text = summarizer.summarize(request)
+                if text:
+                    self.provider_name = getattr(summarizer, "provider_name", "unknown")
+                    self.model_name = getattr(summarizer, "model_name", getattr(summarizer, "provider_name", "unknown"))
+                    self.last_error = ""
+                    return text
+            except Exception as exc:
+                last_error = f"{getattr(summarizer, 'provider_name', 'unknown')}: {type(exc).__name__}: {exc}"
+                logger.warning("Frame summarizer fallback failed: %s", last_error)
+        self.last_error = last_error
+        return request.heuristic_summary
+
+
+def _build_detailed_screen_prompt(request: FrameSummaryRequest) -> str:
+    payload = request.current_payload or {}
+    memory = [item.to_prompt_dict() for item in request.recent_memory[-6:]]
+    macro_layout = payload.get("macro_layout") or []
+    macro_types = [
+        str(item.get("type") or item.get("label") or "").strip()
+        for item in macro_layout
+        if str(item.get("type") or item.get("label") or "").strip()
+    ]
+    micro_elements = payload.get("micro_elements") or []
+    cursor_target = payload.get("cursor_target") or {}
+    previous_frame = payload.get("previous_frame") or {}
+    task = str(payload.get("summary_task") or "frame").strip()
+    screen_structure = payload.get("screen_structure")
+    if task in {"demo_region", "demo_relationship", "code_detailed", "slide_detailed", "paired_frame_change"}:
+        screen_structure = _compact_screen_structure(screen_structure)
+    normalized = {
+        "time": round(float(request.timestamp_sec), 2),
+        "mode": request.mode,
+        "summary_task": task,
+        "transcript_text": request.transcript_text,
+        "cursor_text": request.cursor_text,
+        "page_text": request.page_text,
+        "action_text": request.action_text,
+        "change_type": payload.get("change_type"),
+        "changed_bbox": payload.get("changed_bbox"),
+        "macro_types": macro_types,
+        "macro_layout": _limit_dict_list(macro_layout, 12),
+        "screen_structure": screen_structure,
+        "ocr_lines": _limit_dict_list(payload.get("ocr_lines") or [], 80),
+        "doclayout_elements": _limit_dict_list(payload.get("doclayout_elements") or [], 60),
+        "slide_layout": _limit_dict_list(payload.get("layout") or [], 60),
+        "full_text": str(payload.get("full_text") or "")[:3500],
+        "code_text": str(payload.get("ocr_text") or "")[:5000],
+        "ocr_diff": payload.get("ocr_diff"),
+        "segment": payload.get("segment"),
+        "segment_neighbors": payload.get("segment_neighbors"),
+        "related_segments": payload.get("related_segments"),
+        "micro_element_count": len(micro_elements),
+        "top_visible_text": _collect_micro_highlights(micro_elements, limit=14),
+        "cursor_target": {
+            "text_or_type": cursor_target.get("element_text") or cursor_target.get("element_type"),
+            "macro": cursor_target.get("parent_macro_region_type"),
+            "relation": cursor_target.get("relation"),
+            "confidence": cursor_target.get("confidence"),
+        },
+        "previous_frame": previous_frame,
+        "recent_memory": memory,
+        "heuristic_summary": request.heuristic_summary,
+    }
+
+    if task == "demo_region":
+        instruction = (
+            "Describe exactly one macro segment of a live UI. Be very detailed and concrete. "
+            "Name the segment type, its approximate position, visible text in top-to-bottom/left-to-right order, spacing/alignment patterns, "
+            "empty areas, dense clusters, and what the cursor is on if it falls inside this segment. "
+            "Explain what this segment likely does in the interface. Do not invent text that is not present."
+        )
+    elif task == "demo_relationship":
+        instruction = (
+            "Describe the relationship between already-described UI segments. Explain how header, sidebars, footer, and main-content subregions "
+            "relate spatially and functionally. Mention changed areas and cursor movement. Return concise prose, not JSON."
+        )
+    elif task == "paired_frame_change":
+        instruction = (
+            "Describe the current frame in detail and compare it to the previous deferred frame. "
+            "Report what changed separately for header, left sidebar, right sidebar, footer, main content, and cursor when those regions exist. "
+            "Focus mainly on the current screen, but preserve the before/after relationship clearly."
+        )
+    elif task == "code_detailed":
+        instruction = (
+            "Give a detailed code-screen description. Identify file/editor-like regions if visible, summarize the visible code text, explain changes from the OCR diff, "
+            "and mention cursor position. Be precise about identifiers, functions, error messages, and panels when present."
+        )
+    elif task == "slide_detailed":
+        instruction = (
+            "Give a detailed slide-screen description. Use the slide OCR, slide layout blocks, and YOLO macro layout. Identify title, body structure, lists/tables/figures, "
+            "relative placement, reading order, and cursor position. Include what changed from the previous slide if available."
+        )
+    else:
+        instruction = (
+            "Give a detailed live-screen description using macro layout, OCR, cursor, transcript, and recent memory. Prefer concrete visible text and region names."
+        )
+
+    return (
+        "You are producing research-grade screen-understanding notes for a real-time meeting analyzer.\n"
+        f"{instruction}\n"
+        "Rules:\n"
+        "- Use only the supplied state. If text is noisy, call it unreadable/noisy instead of guessing.\n"
+        "- Preserve coordinates only as relative position language; do not dump raw JSON.\n"
+        "- Mention cursor evidence exactly where it belongs.\n"
+        "- Be detailed enough that someone who cannot see the image can reconstruct the screen.\n"
+        "- Do not output chain-of-thought, markdown tables, or generic filler.\n\n"
+        f"STATE:\n{json.dumps(normalized, ensure_ascii=True)}\n\n"
+        "DETAILED DESCRIPTION:"
+    )
+
+
+def _limit_dict_list(items: Sequence[Any], limit: int) -> List[Any]:
+    output: List[Any] = []
+    for item in list(items or [])[: max(0, int(limit))]:
+        if isinstance(item, dict):
+            compact = {}
+            for key in ("id", "type", "label", "bbox", "text", "caption", "confidence", "source", "children"):
+                if key in item and key != "children":
+                    value = item.get(key)
+                    if isinstance(value, str):
+                        value = value[:220]
+                    compact[key] = value
+            output.append(compact or item)
+        else:
+            output.append(item)
+    return output
+
+
+def _compact_screen_structure(structure: Any) -> Dict[str, Any]:
+    if not isinstance(structure, dict):
+        return {}
+    compact_regions = []
+    for region in list(structure.get("regions") or [])[:12]:
+        if not isinstance(region, dict):
+            continue
+        compact_regions.append(
+            {
+                "id": region.get("id"),
+                "type": region.get("type"),
+                "label": region.get("label"),
+                "bbox": region.get("bbox"),
+                "element_count": region.get("element_count"),
+                "ocr_line_count": region.get("ocr_line_count"),
+                "sample_text": list(region.get("sample_text") or [])[:10],
+                "element_types": region.get("element_types") or {},
+            }
+        )
+    return {
+        "interface_type": structure.get("interface_type"),
+        "layout_description": structure.get("layout_description"),
+        "regions": compact_regions,
+        "highlights": list(structure.get("highlights") or [])[:12],
+        "region_descriptions": list(structure.get("region_descriptions") or [])[:8],
+    }
 
 
 class ResilientFrameSummarizer(BaseFrameSummarizer):

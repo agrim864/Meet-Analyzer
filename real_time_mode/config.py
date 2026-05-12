@@ -22,16 +22,18 @@ class NewRealtimeSettings:
     ocr_lang: str
     surya_enabled: bool
     cursor_model_url: str
-    omniparser_repo_dir: str
-    omniparser_repo_id: str
-    omniparser_weights_dir: str
-    omniparser_bbox_threshold: float
-    omniparser_iou_threshold: float
-    omniparser_imgsz: int
     macro_layout_model_ref: str
     macro_layout_model_filename: str
     macro_layout_conf: float
     macro_layout_iou: float
+    doclayout_enabled: bool
+    doclayout_model_ref: str
+    doclayout_repo_id: str
+    doclayout_filename: str
+    doclayout_conf: float
+    doclayout_iou: float
+    doclayout_imgsz: int
+    doclayout_device: str
     change_tiny_ratio: float
     change_pixel_threshold: int
     change_ssim_threshold: float
@@ -61,17 +63,24 @@ class NewRealtimeSettings:
     frame_summarizer_enabled: bool
     frame_summarizer_provider: str
     frame_summarizer_model: str
+    frame_summarizer_fallback_model: str
     frame_summarizer_device: str
     frame_summarizer_max_new_tokens: int
     frame_summarizer_temperature: float
+    frame_summarizer_timeout_sec: float
     frame_summary_memory_size: int
     gemini_api_key: str
+    openrouter_api_key: str
+    openrouter_model: str
+    openrouter_model_fallbacks: str
+    groq_api_key: str
+    groq_model: str
+    groq_model_fallbacks: str
 
     @classmethod
     def from_env(cls) -> "NewRealtimeSettings":
         _load_env_chain()
         base_dir = Path(__file__).resolve().parent
-        vendor_repo = base_dir / "vendor" / "OmniParser"
         macro_layout_weights = base_dir / "vendor" / "uitag" / "yolo-ui.pt"
         return cls(
             siglip_model_name=os.getenv("SIGLIP_MODEL_NAME", "google/siglip-base-patch16-224").strip(),
@@ -85,16 +94,18 @@ class NewRealtimeSettings:
                 "CURSOR_MODEL_URL",
                 "https://huggingface.co/datasets/roboflow/cursor-detection/resolve/main/yolov8n_cursor.pt",
             ).strip(),
-            omniparser_repo_dir=os.getenv("OMNIPARSER_REPO_DIR", str(vendor_repo)).strip(),
-            omniparser_repo_id=os.getenv("OMNIPARSER_LOCAL_REPO_ID", "microsoft/OmniParser-v2.0").strip(),
-            omniparser_weights_dir=os.getenv("OMNIPARSER_WEIGHTS_DIR", str(vendor_repo / "weights")).strip(),
-            omniparser_bbox_threshold=float(os.getenv("OMNIPARSER_BBOX_THRESHOLD", os.getenv("OMNIPARSER_BOX_THRESHOLD", "0.05"))),
-            omniparser_iou_threshold=float(os.getenv("OMNIPARSER_IOU_THRESHOLD", "0.10")),
-            omniparser_imgsz=int(os.getenv("OMNIPARSER_IMGSZ", "512")),
             macro_layout_model_ref=os.getenv("MACRO_LAYOUT_MODEL_REF", str(macro_layout_weights)).strip(),
             macro_layout_model_filename=os.getenv("MACRO_LAYOUT_MODEL_FILENAME", "yolo-ui.pt").strip(),
             macro_layout_conf=float(os.getenv("MACRO_LAYOUT_CONF", "0.20")),
             macro_layout_iou=float(os.getenv("MACRO_LAYOUT_IOU", "0.45")),
+            doclayout_enabled=os.getenv("DOCLAYOUT_ENABLED", "1").strip().lower() not in {"0", "false", "no"},
+            doclayout_model_ref=os.getenv("DOCLAYOUT_MODEL_REF", "").strip(),
+            doclayout_repo_id=os.getenv("DOCLAYOUT_REPO_ID", "juliozhao/DocLayout-YOLO-DocStructBench").strip(),
+            doclayout_filename=os.getenv("DOCLAYOUT_FILENAME", "doclayout_yolo_docstructbench_imgsz1024.pt").strip(),
+            doclayout_conf=float(os.getenv("DOCLAYOUT_CONF", "0.20")),
+            doclayout_iou=float(os.getenv("DOCLAYOUT_IOU", "0.45")),
+            doclayout_imgsz=int(os.getenv("DOCLAYOUT_IMGSZ", "1024")),
+            doclayout_device=os.getenv("DOCLAYOUT_DEVICE", "auto").strip(),
             change_tiny_ratio=float(os.getenv("CHANGE_TINY_RATIO", "0.01")),
             change_pixel_threshold=int(os.getenv("CHANGE_PIXEL_THRESHOLD", "18")),
             change_ssim_threshold=float(os.getenv("CHANGE_SSIM_THRESHOLD", "0.995")),
@@ -124,24 +135,31 @@ class NewRealtimeSettings:
             frame_summarizer_enabled=os.getenv("FRAME_SUMMARIZER_ENABLED", "0").strip().lower() in {"1", "true", "yes"},
             frame_summarizer_provider=os.getenv("FRAME_SUMMARIZER_PROVIDER", "gemini").strip().lower() or "gemini",
             frame_summarizer_model=os.getenv("FRAME_SUMMARIZER_MODEL", "gemini-2.5-flash").strip(),
+            frame_summarizer_fallback_model=os.getenv("FRAME_SUMMARIZER_FALLBACK_MODEL", "Qwen/Qwen2.5-1.5B-Instruct").strip(),
             frame_summarizer_device=os.getenv("FRAME_SUMMARIZER_DEVICE", "auto").strip(),
-            frame_summarizer_max_new_tokens=int(os.getenv("FRAME_SUMMARIZER_MAX_NEW_TOKENS", "96")),
+            frame_summarizer_max_new_tokens=int(os.getenv("FRAME_SUMMARIZER_MAX_NEW_TOKENS", "700")),
             frame_summarizer_temperature=float(os.getenv("FRAME_SUMMARIZER_TEMPERATURE", "0.1")),
+            frame_summarizer_timeout_sec=float(os.getenv("FRAME_SUMMARIZER_TIMEOUT_SEC", "5.0")),
             frame_summary_memory_size=int(os.getenv("FRAME_SUMMARY_MEMORY_SIZE", "8")),
             gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+            openrouter_api_key=os.getenv("OPENROUTER_API_KEY", "").strip(),
+            openrouter_model=os.getenv("OPENROUTER_MODEL", "qwen/qwen3-next-80b-a3b-instruct:free").strip(),
+            openrouter_model_fallbacks=os.getenv(
+                "OPENROUTER_MODEL_FALLBACKS",
+                "openai/gpt-oss-120b:free,qwen/qwen3-32b:free,openrouter/free",
+            ).strip(),
+            groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
+            groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b").strip(),
+            groq_model_fallbacks=os.getenv("GROQ_MODEL_FALLBACKS", "llama-3.1-8b-instant").strip(),
         )
 
     def validate(self) -> None:
         missing = []
         if not self.deepgram_api_key:
             missing.append("DEEPGRAM_API_KEY")
-        if not self.hf_api_key:
-            missing.append("HF_API_KEY")
         if missing:
             raise RuntimeError(f"Missing required environment variables for real_time_mode: {', '.join(missing)}")
         if not Path(self.cursor_model_path).exists() and not self.cursor_model_url:
             raise RuntimeError(f"Cursor model weights not found and no CURSOR_MODEL_URL configured: {self.cursor_model_path}")
-        if not Path(self.omniparser_repo_dir).exists():
-            raise RuntimeError(f"OmniParser repo directory not found: {self.omniparser_repo_dir}")
-        if self.frame_summarizer_enabled and self.frame_summarizer_provider == "gemini" and not self.gemini_api_key:
-            raise RuntimeError("GEMINI_API_KEY is required when FRAME_SUMMARIZER_PROVIDER=gemini.")
+        # Gemini is preferred when configured. If no key is present, the runtime
+        # falls back to the local text model selected by FRAME_SUMMARIZER_FALLBACK_MODEL.

@@ -1,19 +1,22 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, TimeoutError, as_completed
 from dataclasses import dataclass, field
 from difflib import ndiff
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import cv2
 import numpy as np
 from skimage.metrics import structural_similarity
 
 from .cursor_adapter import CursorMotionAnalyzer
+from .doclayout_adapter import DocLayoutPayload, DocLayoutYOLOAdapter
 from .export import export_scene_record
 from .frame_summarizer import (
     FrameSummaryRequest,
@@ -26,7 +29,6 @@ from .macro_layout import MacroLayoutDetector
 from .merge import merge_reparsed_state
 from .mode_router import ModeRouter
 from .ocr_adapter import OCRResult, OCRTextExtractor
-from .omniparser_adapter import OmniParserAdapter, ParsePayload
 from .siglip_adapter import SiglipScreenClassifier
 from .slide_adapter import SlideAnalysis, SuryaSlideAnalyzer, build_slide_from_ocr_result
 from .state import (
@@ -49,6 +51,7 @@ from .state import (
 from .stt_adapter import UtteranceStore
 
 logger = logging.getLogger(__name__)
+DEFERRED_LLM_MARKER = "__DEFER_LLM_FOR_NEWER_FRAME__"
 
 
 @dataclass
@@ -124,6 +127,7 @@ class StateCache:
     cursor_state: CursorState = field(default_factory=CursorState)
     transcript_buffer: TranscriptBufferState = field(default_factory=TranscriptBufferState)
     summary_memory: List[SummaryMemoryTurn] = field(default_factory=list)
+    deferred_summary_by_mode: Dict[str, ScreenState] = field(default_factory=dict)
 
 
 class DemoAnalyzerPipeline:
@@ -134,9 +138,10 @@ class DemoAnalyzerPipeline:
         *,
         siglip_classifier: Optional[SiglipScreenClassifier] = None,
         stt_store: Optional[UtteranceStore] = None,
-        omniparser: Optional[OmniParserAdapter] = None,
+        omniparser: Optional[Any] = None,
         cursor_analyzer: Optional[CursorMotionAnalyzer] = None,
         macro_layout_detector: Optional[MacroLayoutDetector] = None,
+        doclayout_detector: Optional[DocLayoutYOLOAdapter] = None,
         ocr_extractor: Optional[OCRTextExtractor] = None,
         slide_analyzer: Optional[SuryaSlideAnalyzer] = None,
         mode_router: Optional[ModeRouter] = None,
@@ -159,13 +164,15 @@ class DemoAnalyzerPipeline:
         transcript_window_sec: float = 8.0,
         cursor_mask_padding_px: int = 8,
         debug_black_cursor_mask: bool = False,
+        summary_timeout_sec: Optional[float] = None,
     ) -> None:
         self.siglip = siglip_classifier or SiglipScreenClassifier()
         self.stt_store = stt_store or UtteranceStore()
-        self.omniparser = omniparser or OmniParserAdapter()
+        self.omniparser = None
         self.cursor_analyzer = cursor_analyzer or CursorMotionAnalyzer()
         default_macro_weights = Path(__file__).resolve().parent / "vendor" / "uitag" / "yolo-ui.pt"
         self.macro_layout = macro_layout_detector or MacroLayoutDetector(str(default_macro_weights))
+        self.doclayout = doclayout_detector or DocLayoutYOLOAdapter(enabled=False)
         self.ocr_extractor = ocr_extractor or OCRTextExtractor()
         self.slide_analyzer = slide_analyzer or SuryaSlideAnalyzer(self.ocr_extractor)
         self.router = mode_router or ModeRouter()
@@ -189,11 +196,16 @@ class DemoAnalyzerPipeline:
         self.transcript_window_sec = float(transcript_window_sec)
         self.cursor_mask_padding_px = int(cursor_mask_padding_px)
         self.debug_black_cursor_mask = bool(debug_black_cursor_mask)
+        if summary_timeout_sec is None:
+            summary_timeout_sec = float(os.getenv("FRAME_SUMMARIZER_TIMEOUT_SEC", "5.0"))
+        self.summary_timeout_sec = max(0.5, float(summary_timeout_sec))
 
         self.cache = StateCache()
         self._frame_id = 0
         self._records: List[SceneStateRecord] = []
         self._last_record_by_mode: Dict[str, SceneStateRecord] = {}
+        self.summary_skip_checker: Optional[Callable[[ScreenState], bool]] = None
+        self._llm_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="rt-llm")
 
     def ingest_utterance(self, *, start: float, end: float, speaker: str, text: str, source: str = "live") -> None:
         self.stt_store.add_utterance(start=start, end=end, speaker=speaker, text=text, source=source)
@@ -213,32 +225,38 @@ class DemoAnalyzerPipeline:
 
         previous_mode = self.cache.last_stable_mode
         route_started = perf_counter()
-        route, mode_changed = self._route_mode(frame_bgr)
-        stage_timings["route_ms"] = (perf_counter() - route_started) * 1000.0
+        cursor_started = perf_counter()
+        prev_cursor = self.cache.cursor_state
+        prev_masked_for_cursor = self._get_mode_cache(previous_mode).prev_frame_masked if previous_mode in {"code", "slide", "demo"} else None
+        if self._frame_shape_changed(prev_masked_for_cursor, frame_bgr):
+            prev_masked_for_cursor = None
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            route_future = executor.submit(self._route_mode, frame_bgr)
+            cursor_future = executor.submit(
+                self.cursor_analyzer.analyze,
+                frame_bgr=frame_bgr,
+                prev_frame_bgr=prev_masked_for_cursor,
+                prev_cursor=prev_cursor,
+                elements=self._candidate_elements_for_cursor(previous_mode),
+            )
+            route, mode_changed = route_future.result()
+            stage_timings["route_ms"] = (perf_counter() - route_started) * 1000.0
+            try:
+                cursor = cursor_future.result()
+            except Exception as exc:
+                logger.warning("Cursor analysis failed for frame=%s: %s", self._frame_id, exc)
+                cursor = CursorState()
+            stage_timings["cursor_ms"] = (perf_counter() - cursor_started) * 1000.0
         mode = route.mode
         self.cache.previous_mode = previous_mode
         self.cache.current_mode = mode
         self.cache.last_stable_mode = mode
         self.cache.mode_prediction_history = [item.to_dict() for item in self.router.state.history]
 
-        cursor = CursorState()
-        masked_frame: Optional[np.ndarray] = None
         if mode in {"code", "slide", "demo"}:
-            cursor_started = perf_counter()
-            prev_cursor = self.cache.cursor_state
-            prev_masked = self._get_mode_cache(mode).prev_frame_masked
-            if self._frame_shape_changed(prev_masked, frame_bgr):
-                prev_masked = None
-            cursor = self.cursor_analyzer.analyze(
-                frame_bgr=frame_bgr,
-                prev_frame_bgr=prev_masked,
-                prev_cursor=prev_cursor,
-                elements=self._candidate_elements_for_cursor(mode),
-            )
             masked_frame = self._mask_cursor_for_change_detection(frame_bgr, cursor, prev_cursor)
-            stage_timings["cursor_ms"] = (perf_counter() - cursor_started) * 1000.0
         else:
-            stage_timings["cursor_ms"] = 0.0
+            masked_frame = None
         self.cache.cursor_state = cursor.copy()
 
         mode_started = perf_counter()
@@ -250,6 +268,10 @@ class DemoAnalyzerPipeline:
             state = self._process_demo_mode(frame_bgr, masked_frame, timestamp_sec, viewport, route, mode_changed)
         else:
             state = self._process_other_mode(timestamp_sec, viewport, route, mode_changed)
+        state = self._maybe_reclassify_visual_state(state)
+        mode = state.mode
+        self.cache.current_mode = mode
+        self.cache.last_stable_mode = mode
         stage_timings["mode_processor_ms"] = (perf_counter() - mode_started) * 1000.0
 
         summary_started = perf_counter()
@@ -276,6 +298,7 @@ class DemoAnalyzerPipeline:
                 "change_score": float(state.debug.get("change_score", 0.0)),
                 "processor_used": str(state.debug.get("processor_used", "none")),
                 "rfdetr_ran": bool(state.debug.get("rfdetr_ran", False)),
+                "macro_detector_ran": bool(state.debug.get("macro_detector_ran", state.debug.get("rfdetr_ran", False))),
                 "omniparser_ran": bool(state.debug.get("omniparser_ran", False)),
                 "processing_time_ms": elapsed_ms,
                 "stage_timings_ms": stage_timings,
@@ -369,6 +392,7 @@ class DemoAnalyzerPipeline:
                     "processor_used": "ocr",
                     "rfdetr_ran": False,
                     "omniparser_ran": False,
+                    "ocr_ran": True,
                     "crop_bbox": list(changed_bbox),
                     "stage_timings_ms": {"ocr_ms": ocr_ms},
                 },
@@ -417,19 +441,41 @@ class DemoAnalyzerPipeline:
             )
         if first_frame or change.changed:
             slide_started = perf_counter()
-            slide = self._safe_analyze_slide(frame_bgr)
-            slide_ms = (perf_counter() - slide_started) * 1000.0
+            layout_started = perf_counter()
+            doclayout_started = perf_counter()
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                slide_future = executor.submit(self._safe_analyze_slide, frame_bgr)
+                layout_future = executor.submit(self._detect_macro_layout, frame_bgr, timestamp_sec)
+                doclayout_future = executor.submit(
+                    self._safe_detect_doclayout_regions,
+                    frame_bgr,
+                    [(0, 0, viewport["width"], viewport["height"])],
+                    "slide",
+                    timestamp_sec,
+                )
+                slide = slide_future.result()
+                slide_ms = (perf_counter() - slide_started) * 1000.0
+                macro_layout = layout_future.result()
+                layout_ms = (perf_counter() - layout_started) * 1000.0
+                doclayout = doclayout_future.result()
+                doclayout_ms = (perf_counter() - doclayout_started) * 1000.0
             duplicate_slide = (not first_frame) and cache.prev_slide_fingerprint and cache.prev_slide_fingerprint == slide.fingerprint
             visual_change = first_frame or (change.changed and not duplicate_slide)
+            elements = [*_elements_from_slide(slide, frame_id=self._frame_id, timestamp_sec=timestamp_sec), *doclayout.elements]
+            for element in elements:
+                element.parent_macro_region_id = _parent_group_id_for_box(element.bbox, macro_layout)
+            screen_structure = _build_demo_screen_structure(macro_layout, elements)
             payload = {
                 "mode": "slide",
                 "visual_change": visual_change,
                 "slide_fingerprint": slide.fingerprint,
                 "layout": [block.to_dict() for block in slide.layout],
+                "macro_layout": [_serialize_layout_group(group) for group in macro_layout],
+                "doclayout_elements": [_serialize_micro_element(item) for item in doclayout.elements],
+                "screen_structure": screen_structure,
                 "full_text": slide.full_text,
                 "cursor": _cursor_payload(self.cache.cursor_state),
             }
-            elements = _elements_from_slide(slide, frame_id=self._frame_id, timestamp_sec=timestamp_sec)
             state = ScreenState(
                 frame_id=self._frame_id,
                 timestamp_sec=float(timestamp_sec),
@@ -442,7 +488,7 @@ class DemoAnalyzerPipeline:
                 visual_payload=payload,
                 elements=elements,
                 overlays=[],
-                layout_groups=[LayoutGroup(id="group_slide_content", label="content", bbox=(0, 0, viewport["width"], viewport["height"]), source=slide.provider, frame_id=self._frame_id, timestamp=float(timestamp_sec))],
+                layout_groups=macro_layout or [LayoutGroup(id="group_slide_content", label="content", bbox=(0, 0, viewport["width"], viewport["height"]), source=slide.provider, frame_id=self._frame_id, timestamp=float(timestamp_sec))],
                 cursor=self.cache.cursor_state.copy(),
                 delta=StateDelta(
                     types=["initial_frame"] if first_frame else ["surya_refresh" if visual_change else "duplicate_slide"],
@@ -450,14 +496,22 @@ class DemoAnalyzerPipeline:
                     reparsed_regions=[(0, 0, viewport["width"], viewport["height"])] if visual_change else [],
                     confidence=max(slide.confidence, change.change_ratio),
                 ),
-                confidence={"slide_provider": slide.provider, "slide_confidence": slide.confidence},
+                confidence={
+                    "slide_provider": slide.provider,
+                    "slide_confidence": slide.confidence,
+                    "doclayout_provider": doclayout.provider,
+                    "doclayout_confidence": doclayout.confidence,
+                },
                 debug={
                     "change_score": change.change_ratio,
                     "processor_used": "surya",
                     "rfdetr_ran": False,
+                    "macro_detector_ran": True,
                     "omniparser_ran": False,
+                    "ocr_ran": True,
                     "duplicate_slide": duplicate_slide,
-                    "stage_timings_ms": {"slide_analysis_ms": slide_ms},
+                    "doclayout_ran": bool(doclayout.elements),
+                    "stage_timings_ms": {"slide_analysis_ms": slide_ms, "macro_layout_ms": layout_ms, "doclayout_ms": doclayout_ms},
                 },
             )
             if visual_change or first_frame:
@@ -496,7 +550,6 @@ class DemoAnalyzerPipeline:
         interval_skip = (not first_frame) and cache.last_processed_time is not None and (timestamp_sec - cache.last_processed_time) < self.demo_interval_sec
         change = ChangeDetectionResult(changed=True, change_ratio=1.0, ssim_score=0.0, changed_regions=[(0, 0, frame_w, frame_h)], change_type="initial")
         reran_macro = False
-        omniparser_ran = False
         stage_timings: Dict[str, float] = {}
         if interval_skip:
             return self._reuse_cached_state(cache.last_state, timestamp_sec, route, self.cache.cursor_state, self._infer_theme(masked_frame), "demo", "interval_skip", change)
@@ -533,7 +586,6 @@ class DemoAnalyzerPipeline:
                 reran_macro = True
             else:
                 stage_timings["macro_layout_ms"] = 0.0
-            macro_layout = self._augment_macro_layout_from_micro(macro_layout, cache.prev_micro_elements, viewport)
             state.layout_groups = [group.copy() for group in macro_layout]
 
             crop_plan = self._plan_demo_crops(change.changed_regions, macro_layout, cache.prev_micro_elements, viewport, first_frame)
@@ -541,21 +593,29 @@ class DemoAnalyzerPipeline:
             requires_full_parse = first_frame or any(bool(item.get("requires_full_parse")) for item in crop_plan)
             if requires_full_parse:
                 reparsed_regions = [(0, 0, frame_w, frame_h)]
-            parse_started = perf_counter()
-            parsed = self._parse_micro_regions(frame_bgr, reparsed_regions)
-            stage_timings["omniparser_ms"] = (perf_counter() - parse_started) * 1000.0
-            omniparser_ran = True
 
             ocr_started = perf_counter()
-            demo_ocr = self._safe_extract_ocr_regions(frame_bgr, reparsed_regions, "demo")
-            stage_timings["ocr_ms"] = (perf_counter() - ocr_started) * 1000.0
-            ocr_elements = _elements_from_ocr_lines(
+            doclayout_started = perf_counter()
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                ocr_future = executor.submit(self._safe_extract_ocr_regions, frame_bgr, reparsed_regions, "demo")
+                doclayout_future = executor.submit(
+                    self._safe_detect_doclayout_regions,
+                    frame_bgr,
+                    reparsed_regions,
+                    "demo",
+                    timestamp_sec,
+                )
+                demo_ocr = ocr_future.result()
+                stage_timings["ocr_ms"] = (perf_counter() - ocr_started) * 1000.0
+                doclayout = doclayout_future.result()
+                stage_timings["doclayout_ms"] = (perf_counter() - doclayout_started) * 1000.0
+            reparsed_elements = _elements_from_ocr_lines(
                 demo_ocr.lines,
                 frame_id=self._frame_id,
                 timestamp_sec=timestamp_sec,
                 prefix="demo_ocr",
             )
-            reparsed_elements = [*parsed.elements, *ocr_elements]
+            reparsed_elements.extend(doclayout.elements)
 
             for element in reparsed_elements:
                 element.parent_macro_region_id = _parent_group_id_for_box(element.bbox, macro_layout)
@@ -563,11 +623,10 @@ class DemoAnalyzerPipeline:
             merged_state = merge_reparsed_state(
                 state=state,
                 reparsed_elements=reparsed_elements,
-                reparsed_overlays=parsed.overlays,
+                reparsed_overlays=[],
                 reparsed_regions=reparsed_regions,
                 frame_id=self._frame_id,
             )
-            merged_state.layout_groups = self._augment_macro_layout_from_micro(merged_state.layout_groups, merged_state.elements, viewport)
             merged_state.route = route
             merged_state.mode = "demo"
             merged_state.frame_type = "demo"
@@ -589,6 +648,7 @@ class DemoAnalyzerPipeline:
                 "change_type": change.change_type,
                 "macro_layout": [_serialize_layout_group(group) for group in merged_state.layout_groups],
                 "micro_elements": [_serialize_micro_element(item) for item in merged_state.elements],
+                "doclayout_elements": [_serialize_micro_element(item) for item in doclayout.elements],
                 "ocr_text": ocr_text,
                 "updated_ocr_text": demo_ocr.text,
                 "ocr_lines": _ocr_lines_from_elements(merged_state.elements),
@@ -603,8 +663,10 @@ class DemoAnalyzerPipeline:
             merged_state.visual_payload = visual_payload
             merged_state.summary = page_summary
             merged_state.confidence = {
-                "parser_provider": parsed.provider,
-                "parser_confidence": parsed.confidence,
+                "layout_provider": "yolo_layout",
+                "layout_confidence": _mean_layout_confidence(merged_state.layout_groups),
+                "doclayout_provider": doclayout.provider,
+                "doclayout_confidence": doclayout.confidence,
                 "ocr_provider": demo_ocr.provider,
                 "ocr_confidence": demo_ocr.confidence,
                 "ssim_score": change.ssim_score,
@@ -613,9 +675,11 @@ class DemoAnalyzerPipeline:
             }
             merged_state.debug = {
                 "change_score": change.change_ratio,
-                "processor_used": "webui_pipeline",
+                "processor_used": "layout_ocr_pipeline",
                 "rfdetr_ran": reran_macro,
-                "omniparser_ran": omniparser_ran,
+                "macro_detector_ran": reran_macro,
+                "doclayout_ran": bool(doclayout.elements),
+                "omniparser_ran": False,
                 "ocr_ran": True,
                 "crop_bbox": [list(item) for item in reparsed_regions],
                 "change_type": change.change_type,
@@ -625,7 +689,7 @@ class DemoAnalyzerPipeline:
                 types=["initial_frame"] if first_frame else ["macro_refresh" if reran_macro else "micro_refresh"],
                 changed_regions=list(change.changed_regions),
                 reparsed_regions=list(reparsed_regions),
-                confidence=max(parsed.confidence, change.change_ratio),
+                confidence=max(demo_ocr.confidence, change.change_ratio),
             )
             merged_state.last_full_parse_frame_id = self._frame_id if reran_macro or first_frame else merged_state.last_full_parse_frame_id
             cache.prev_macro_layout = [group.copy() for group in merged_state.layout_groups]
@@ -840,6 +904,24 @@ class DemoAnalyzerPipeline:
         changed_area = sum(bbox_area(region) for region in changed_regions)
         if (changed_area / frame_area) >= self.macro_global_change_ratio:
             return True
+        boundary_pad = max(4, int(min(int(viewport["width"]), int(viewport["height"])) * self.macro_boundary_overlap))
+        for region in changed_regions:
+            expanded = self._expand_region(region, int(viewport["width"]), int(viewport["height"]))
+            intersecting = [group for group in macro_layout if bbox_intersects(expanded, group.bbox, padding=boundary_pad)]
+            if not intersecting:
+                return True
+            if len({group.id for group in intersecting}) >= 2:
+                return True
+            parent = intersecting[0]
+            px1, py1, px2, py2 = parent.bbox
+            rx1, ry1, rx2, ry2 = expanded
+            if (
+                abs(rx1 - px1) <= boundary_pad
+                or abs(rx2 - px2) <= boundary_pad
+                or abs(ry1 - py1) <= boundary_pad
+                or abs(ry2 - py2) <= boundary_pad
+            ) and bbox_area(expanded) >= max(32, int(frame_area * 0.002)):
+                return True
         return False
 
     def _plan_demo_crops(
@@ -872,7 +954,7 @@ class DemoAnalyzerPipeline:
                 if parent_type in {"header", "left_sidebar", "footer"}:
                     crop_bbox = list(parent.bbox)
                     reason = f"{parent_type}_region_change"
-                elif parent_type == "content":
+                elif parent_type in {"content", "main_content"}:
                     enclosing_elements = [item for item in existing_elements if bbox_intersects(item.bbox, expanded, padding=4)]
                     if enclosing_elements:
                         snapped = union_boxes([item.bbox for item in enclosing_elements])
@@ -1015,9 +1097,6 @@ class DemoAnalyzerPipeline:
             stable=False,
         )
 
-    def _parse_micro_regions(self, frame_masked: np.ndarray, regions: Sequence[BBox]) -> ParsePayload:
-        return self.omniparser.parse_regions(frame_masked, regions)
-
     def _safe_extract_ocr(self, frame_bgr: np.ndarray, mode: str) -> OCRResult:
         try:
             return self.ocr_extractor.extract_full(frame_bgr, frame_type=mode)
@@ -1041,6 +1120,25 @@ class DemoAnalyzerPipeline:
         except Exception as exc:
             logger.warning("Region OCR failed for mode=%s frame=%s: %s", mode, self._frame_id, exc)
             return OCRResult(text="", lines=[], provider="ocr_failed", confidence=0.0)
+
+    def _safe_detect_doclayout_regions(
+        self,
+        frame_bgr: np.ndarray,
+        regions: Sequence[BBox],
+        mode: str,
+        timestamp_sec: float,
+    ) -> DocLayoutPayload:
+        try:
+            payload = self.doclayout.detect_regions(
+                frame_bgr,
+                regions,
+                frame_id=self._frame_id,
+                timestamp_sec=timestamp_sec,
+            )
+            return payload
+        except Exception as exc:
+            logger.warning("DocLayout-YOLO failed for mode=%s frame=%s: %s", mode, self._frame_id, exc)
+            return DocLayoutPayload(elements=[], provider=f"doclayout_failed:{type(exc).__name__}", confidence=0.0)
 
     def _ocr_elements_for_regions(
         self,
@@ -1160,6 +1258,9 @@ class DemoAnalyzerPipeline:
         mode_changed: bool,
     ) -> str:
         transcript_text = " ".join(segment.text for segment in transcript_window if segment.text).strip()
+        if self._should_defer_llm_for_newer_frame(state, mode_changed=mode_changed):
+            return self._deferred_summary_for_newer_frame(state, transcript_text)
+        previous_deferred = self._pop_deferred_frame_for_pair(state)
         if state.mode == "code":
             ocr_text = str(state.visual_payload.get("ocr_text", "") or "").strip()
             ocr_diff = state.visual_payload.get("ocr_diff", {}) or {}
@@ -1174,6 +1275,10 @@ class DemoAnalyzerPipeline:
             elif ocr_text:
                 visual_part += f" Visible text includes: {ocr_text[:220]}."
             heuristic = _join_summary_parts([_mode_transition_text(previous_mode, state.mode, mode_changed), visual_part, transcript_text and f"They are saying: {transcript_text}"])
+            state.visual_payload["summary_task"] = "code_detailed"
+            if previous_deferred is not None:
+                state.visual_payload["summary_task"] = "paired_frame_change"
+                state.visual_payload["previous_frame"] = self._compact_state_for_pair(previous_deferred)
             return self._llm_summary(
                 state=state,
                 heuristic_summary=heuristic,
@@ -1193,6 +1298,10 @@ class DemoAnalyzerPipeline:
             if transcript_text:
                 visual_part += f" They are discussing: {transcript_text}"
             heuristic = _join_summary_parts([_mode_transition_text(previous_mode, state.mode, mode_changed), visual_part])
+            state.visual_payload["summary_task"] = "slide_detailed"
+            if previous_deferred is not None:
+                state.visual_payload["summary_task"] = "paired_frame_change"
+                state.visual_payload["previous_frame"] = self._compact_state_for_pair(previous_deferred)
             return self._llm_summary(
                 state=state,
                 heuristic_summary=heuristic,
@@ -1202,26 +1311,12 @@ class DemoAnalyzerPipeline:
                 action_text=self._action_summary_text(state),
             )
         if state.mode == "demo":
-            page_summary = str(state.visual_payload.get("page_summary", "") or "").strip()
-            change_type = str(state.visual_payload.get("change_type", "") or "").strip()
-            visual_part = page_summary or "The presenter is demonstrating a web UI."
-            if change_type and change_type != "none":
-                visual_part += f" The detected UI change type is {change_type.replace('_', ' ')}."
-            if transcript_text:
-                visual_part += f" They are explaining: {transcript_text}"
-            heuristic = _join_summary_parts([_mode_transition_text(previous_mode, state.mode, mode_changed), visual_part])
-            return self._llm_summary(
+            return self._summarize_demo_by_regions(
                 state=state,
-                heuristic_summary=heuristic,
                 transcript_text=transcript_text,
-                cursor_text=self._cursor_summary_text(state.cursor, state.visual_payload.get("cursor_target")),
-                page_text=_join_summary_parts(
-                    [
-                        str(state.visual_payload.get("page_summary", "") or ""),
-                        str(state.visual_payload.get("ocr_text", "") or ""),
-                    ]
-                )[:700],
-                action_text=self._action_summary_text(state),
+                previous_mode=previous_mode,
+                mode_changed=mode_changed,
+                previous_deferred=previous_deferred,
             )
         heuristic = _join_summary_parts([
             _mode_transition_text(previous_mode, state.mode, mode_changed),
@@ -1258,12 +1353,263 @@ class DemoAnalyzerPipeline:
             current_payload=dict(state.visual_payload),
             recent_memory=list(self.cache.summary_memory[-self.summary_memory_size :]),
         )
-        summary = self.frame_summarizer.summarize(request)
+        summary = self._run_summarizer_with_newer_poll(state, request)
+        if summary == DEFERRED_LLM_MARKER:
+            return self._deferred_summary_for_newer_frame(state, transcript_text)
         summary_backend = getattr(self.frame_summarizer, "primary", self.frame_summarizer)
         state.debug = dict(state.debug)
         state.debug["summary_provider"] = getattr(summary_backend, "provider_name", "heuristic")
         state.debug["summary_model"] = getattr(summary_backend, "model_name", "heuristic")
         return summary
+
+    def _summarize_demo_by_regions(
+        self,
+        *,
+        state: ScreenState,
+        transcript_text: str,
+        previous_mode: str,
+        mode_changed: bool,
+        previous_deferred: Optional[ScreenState] = None,
+    ) -> str:
+        structure = state.visual_payload.get("screen_structure") or {}
+        regions = list(structure.get("regions") or [])
+        segment_payloads = _demo_segment_payloads(regions, state.visual_payload.get("cursor_target") or {})
+        page_text = _join_summary_parts(
+            [
+                str(state.visual_payload.get("page_summary", "") or ""),
+                str(state.visual_payload.get("ocr_text", "") or ""),
+            ]
+        )[:1200]
+        base_heuristic = _join_summary_parts(
+            [
+                _mode_transition_text(previous_mode, state.mode, mode_changed),
+                str(state.visual_payload.get("page_summary", "") or "The presenter is demonstrating a web UI."),
+                transcript_text and f"They are explaining: {transcript_text}",
+            ]
+        )
+        started = perf_counter()
+        ordered_results = {
+            segment["key"]: {
+                "label": segment["label"],
+                "bbox": segment["bbox"],
+                "description": _segment_fallback_description(segment),
+            }
+            for segment in segment_payloads
+        }
+        relationship = _demo_relationship_fallback(segment_payloads)
+        if len(segment_payloads) >= 2:
+            llm_relationship = self._summarize_payload(
+                state=state,
+                payload={
+                    **dict(state.visual_payload),
+                    "summary_task": "demo_relationship",
+                    "related_segments": [
+                        {
+                            "key": segment["key"],
+                            "label": segment["label"],
+                            "description": ordered_results.get(segment["key"], {}).get("description", ""),
+                        }
+                        for segment in segment_payloads
+                    ],
+                    "previous_frame": self._compact_state_for_pair(previous_deferred) if previous_deferred is not None else {},
+                },
+                heuristic_summary=relationship,
+                transcript_text=transcript_text,
+                cursor_text=self._cursor_summary_text(state.cursor, state.visual_payload.get("cursor_target")),
+                page_text=page_text,
+                action_text=self._action_summary_text(state),
+            )
+            if llm_relationship == DEFERRED_LLM_MARKER:
+                return self._deferred_summary_for_newer_frame(state, transcript_text)
+            if llm_relationship and not _looks_like_prompt_placeholder(llm_relationship):
+                relationship = llm_relationship
+        if relationship:
+            ordered_results["relationships"] = {"label": "relationships", "bbox": None, "description": relationship}
+        results_md = _format_demo_results_markdown(state.frame_id, state.timestamp_sec, ordered_results)
+        state.visual_payload["segment_descriptions"] = ordered_results
+        state.visual_payload["results_md"] = results_md
+        state.visual_payload["summary_task"] = "demo_segmented"
+        state.debug = dict(state.debug)
+        state.debug.setdefault("stage_timings_ms", {})
+        state.debug["stage_timings_ms"]["segment_summary_ms"] = (perf_counter() - started) * 1000.0
+        state.debug["segment_summary_count"] = len(segment_payloads)
+        summary_backend = getattr(self.frame_summarizer, "primary", self.frame_summarizer)
+        state.debug["summary_provider"] = getattr(summary_backend, "provider_name", "heuristic")
+        state.debug["summary_model"] = getattr(summary_backend, "model_name", "heuristic")
+        return results_md or base_heuristic
+
+    def _summarize_payload(
+        self,
+        *,
+        state: ScreenState,
+        payload: Dict[str, Any],
+        heuristic_summary: str,
+        transcript_text: str,
+        cursor_text: str,
+        page_text: str,
+        action_text: str,
+    ) -> str:
+        request = FrameSummaryRequest(
+            timestamp_sec=state.timestamp_sec,
+            mode=state.mode,
+            heuristic_summary=heuristic_summary,
+            transcript_text=transcript_text,
+            cursor_text=cursor_text,
+            page_text=page_text,
+            action_text=action_text,
+            current_payload=payload,
+            recent_memory=list(self.cache.summary_memory[-self.summary_memory_size :]),
+        )
+        return self._run_summarizer_with_newer_poll(state, request)
+
+    def _run_summarizer_with_newer_poll(self, state: ScreenState, request: FrameSummaryRequest) -> str:
+        future = self._llm_executor.submit(self.frame_summarizer.summarize, request)
+        started = perf_counter()
+        while True:
+            try:
+                return future.result(timeout=0.10)
+            except TimeoutError:
+                if self._should_defer_llm_for_newer_frame(state, mode_changed=False):
+                    future.cancel()
+                    state.debug = dict(state.debug)
+                    state.debug["llm_policy"] = "skipped_inflight_near_duplicate_pending_newer_frame"
+                    return DEFERRED_LLM_MARKER
+                if (perf_counter() - started) >= self.summary_timeout_sec:
+                    future.cancel()
+                    state.debug = dict(state.debug)
+                    state.debug["llm_policy"] = "summary_timeout_heuristic_fallback"
+                    state.debug["summary_error"] = (
+                        f"LLM summary exceeded {self.summary_timeout_sec:.1f}s; "
+                        "returned heuristic summary so the live frame could render."
+                    )
+                    state.debug["summary_provider"] = "heuristic_timeout"
+                    state.debug["summary_model"] = "heuristic"
+                    return request.heuristic_summary
+
+    def _maybe_reclassify_visual_state(self, state: ScreenState) -> ScreenState:
+        if state.mode != "demo":
+            return state
+        if not self._demo_state_looks_like_code(state):
+            return state
+        state.mode = "code"
+        state.frame_type = "code"
+        state.visual_payload = dict(state.visual_payload)
+        state.visual_payload["mode"] = "code"
+        state.visual_payload["summary_task"] = "code_detailed"
+        state.debug = dict(state.debug)
+        state.debug["route_override"] = "demo_to_code_from_ocr"
+        state.delta.types = [*list(state.delta.types or []), "mode_override_code"]
+        return state
+
+    @staticmethod
+    def _demo_state_looks_like_code(state: ScreenState) -> bool:
+        payload = state.visual_payload or {}
+        text = " ".join(
+            [
+                str(payload.get("ocr_text") or ""),
+                str(payload.get("page_summary") or ""),
+                " ".join(str(item.get("text") or "") for item in payload.get("micro_elements") or []),
+            ]
+        ).lower()
+        code_terms = [
+            "import ",
+            "inport ",
+            "from ",
+            "trom ",
+            "class ",
+            "def ",
+            "return ",
+            "except ",
+            "pydantic",
+            "requirements",
+            "open editors",
+            "terminal",
+            "debug console",
+            "explorer",
+            "meet_agent",
+            "frame_analysis",
+            "utterances",
+            ".py",
+        ]
+        score = sum(1 for term in code_terms if term in text)
+        return score >= 3
+
+    def _pop_deferred_frame_for_pair(self, state: ScreenState) -> Optional[ScreenState]:
+        previous = self.cache.deferred_summary_by_mode.pop(state.mode, None)
+        if previous is None:
+            return None
+        if self._states_too_different_for_pair(previous, state):
+            self.cache.deferred_summary_by_mode[previous.mode] = previous
+            return None
+        state.debug = dict(state.debug)
+        state.debug["llm_policy"] = "paired_with_previous_deferred_frame"
+        return previous
+
+    @staticmethod
+    def _states_too_different_for_pair(previous: ScreenState, current: ScreenState) -> bool:
+        if previous.mode != current.mode:
+            return True
+        change_type = str(current.visual_payload.get("change_type") or current.debug.get("change_type") or "")
+        change_score = float(current.debug.get("change_score", 0.0) or 0.0)
+        return change_type in {"navigation_or_page_change", "large_layout_change"} and change_score >= 0.05
+
+    @staticmethod
+    def _compact_state_for_pair(state: Optional[ScreenState]) -> Dict[str, Any]:
+        if state is None:
+            return {}
+        payload = dict(state.visual_payload or {})
+        return {
+            "frame_id": state.frame_id,
+            "timestamp_sec": round(float(state.timestamp_sec), 2),
+            "mode": state.mode,
+            "summary": str(state.summary or "")[:1200],
+            "page_summary": str(payload.get("page_summary") or "")[:1000],
+            "ocr_text": str(payload.get("ocr_text") or payload.get("full_text") or "")[:1600],
+            "macro_layout": list(payload.get("macro_layout") or [])[:12],
+            "screen_structure": payload.get("screen_structure") or {},
+            "cursor_target": payload.get("cursor_target") or {},
+        }
+
+    def _should_defer_llm_for_newer_frame(self, state: ScreenState, *, mode_changed: bool) -> bool:
+        checker = self.summary_skip_checker
+        if checker is None or mode_changed or state.mode not in {"demo", "slide", "code"}:
+            return False
+        try:
+            newer_waiting = bool(checker(state))
+        except Exception:
+            newer_waiting = False
+        if not newer_waiting:
+            return False
+        change_type = str(state.visual_payload.get("change_type") or state.debug.get("change_type") or "")
+        if change_type in {"navigation_or_page_change", "large_layout_change"}:
+            return False
+        change_score = float(state.debug.get("change_score", 0.0) or 0.0)
+        threshold = 0.018 if state.mode == "demo" else 0.006
+        previous_record = self._last_record_by_mode.get(state.mode)
+        return previous_record is not None and change_score <= threshold
+
+    def _deferred_summary_for_newer_frame(self, state: ScreenState, transcript_text: str) -> str:
+        previous_record = self._last_record_by_mode.get(state.mode)
+        previous_summary = str(previous_record.summary if previous_record is not None else "").strip()
+        fallback = str(state.visual_payload.get("page_summary") or state.visual_payload.get("full_text") or state.visual_payload.get("ocr_text") or "").strip()
+        summary = _join_summary_parts(
+            [
+                "Detailed LLM work for this near-duplicate frame was skipped because a newer frame was already waiting.",
+                previous_summary and f"Previous stable description: {previous_summary[:500]}",
+                fallback and f"Current detected evidence: {fallback[:500]}",
+                transcript_text and f"Transcript during the skipped frame: {transcript_text[:300]}",
+            ]
+        )
+        state.visual_payload["summary_task"] = "deferred_for_newer_frame"
+        state.visual_payload["results_md"] = _format_deferred_results_markdown(state.frame_id, state.timestamp_sec, summary)
+        state.debug = dict(state.debug)
+        state.debug["summary_provider"] = "deferred"
+        state.debug["summary_model"] = "newer_frame_waiting"
+        state.debug["llm_policy"] = state.debug.get("llm_policy") or "skipped_near_duplicate_pending_newer_frame"
+        deferred = state.clone()
+        deferred.summary = state.visual_payload["results_md"]
+        self.cache.deferred_summary_by_mode[state.mode] = deferred
+        return state.visual_payload["results_md"]
 
     def _remember_summary(self, state: ScreenState, transcript_window: Sequence[TranscriptSegment]) -> None:
         transcript_text = " ".join(segment.text for segment in transcript_window if segment.text).strip()
@@ -1456,7 +1802,7 @@ class DemoAnalyzerPipeline:
             )
             return
         logger.info(
-            "[frame=%s] mode=%s conf=%.2f cursor=%s cursor_conf=%.2f changed=%s change_type=%s macro=%s micro=%s transcript_segments=%s total=%.1fms",
+            "[frame=%s] mode=%s conf=%.2f cursor=%s cursor_conf=%.2f changed=%s change_type=%s macro=%s ocr=%s transcript_segments=%s total=%.1fms",
             state.frame_id,
             state.mode,
             float(state.route.confidence),
@@ -1464,8 +1810,8 @@ class DemoAnalyzerPipeline:
             float(state.cursor.confidence),
             str(state.visual_change).lower(),
             str(state.debug.get("change_type", state.visual_payload.get("change_type", "none"))),
-                "macro_detector_ran" if state.debug.get("rfdetr_ran") else "macro_detector_skipped",
-            "omniparser_crop" if state.debug.get("omniparser_ran") else "cache_reused",
+            "macro_detector_ran" if state.debug.get("macro_detector_ran", state.debug.get("rfdetr_ran")) else "macro_detector_skipped",
+            "ran" if state.debug.get("ocr_ran") else "cache_reused",
             len(transcript_window),
             float(state.debug.get("processing_time_ms", 0.0)),
         )
@@ -1609,6 +1955,192 @@ def _build_demo_screen_structure(layout_groups: Sequence[LayoutGroup], elements:
         "region_descriptions": region_descriptions,
         "highlights": highlights,
     }
+
+
+def _demo_segment_payloads(regions: Sequence[Dict[str, Any]], cursor_target: Dict[str, Any]) -> List[Dict[str, Any]]:
+    priority = {"header": 0, "top_navbar": 0, "left_sidebar": 1, "right_sidebar": 2, "footer": 4}
+    payloads: List[Dict[str, Any]] = []
+    main_regions: List[Dict[str, Any]] = []
+    for idx, region in enumerate(regions):
+        region_type = str(region.get("type") or "").strip() or "region"
+        if region_type in {"main_content", "content", "content_panel", "form_region", "table_region"}:
+            main_regions.append(region)
+            continue
+        if region_type not in priority:
+            continue
+        payloads.append(_region_payload(region, key=f"{region_type}_{idx}", label=_human_region_label(region_type), cursor_target=cursor_target, order=priority[region_type]))
+    for region in main_regions:
+        payloads.extend(_split_main_region_payloads(region, cursor_target=cursor_target, max_segments=5))
+    if not payloads:
+        for idx, region in enumerate(regions[:6]):
+            region_type = str(region.get("type") or "region").strip() or "region"
+            payloads.append(_region_payload(region, key=f"{region_type}_{idx}", label=_human_region_label(region_type), cursor_target=cursor_target, order=idx))
+    payloads.sort(key=lambda item: (item["order"], item["bbox"][1], item["bbox"][0], item["key"]))
+    return payloads
+
+
+def _split_main_region_payloads(region: Dict[str, Any], *, cursor_target: Dict[str, Any], max_segments: int) -> List[Dict[str, Any]]:
+    children = sorted(list(region.get("children") or []), key=lambda item: (int((item.get("bbox") or [0, 0, 0, 0])[1]), int((item.get("bbox") or [0, 0, 0, 0])[0])))
+    if not children:
+        return [_region_payload(region, key="main_content_0", label=_human_region_label(str(region.get("type") or "main_content")), cursor_target=cursor_target, order=3)]
+    y_gaps: List[Tuple[int, int]] = []
+    previous_bottom = int((children[0].get("bbox") or [0, 0, 0, 0])[3])
+    for idx, child in enumerate(children[1:], start=1):
+        bbox = child.get("bbox") or [0, 0, 0, 0]
+        gap = int(bbox[1]) - previous_bottom
+        if gap > 80:
+            y_gaps.append((gap, idx))
+        previous_bottom = max(previous_bottom, int(bbox[3]))
+    split_indices = sorted(idx for _, idx in sorted(y_gaps, reverse=True)[: max(0, max_segments - 1)])
+    groups: List[List[Dict[str, Any]]] = []
+    start = 0
+    for idx in split_indices:
+        groups.append(children[start:idx])
+        start = idx
+    groups.append(children[start:])
+    payloads: List[Dict[str, Any]] = []
+    for idx, group in enumerate(groups[:max_segments]):
+        if not group:
+            continue
+        bbox = union_boxes([tuple(int(v) for v in (item.get("bbox") or [0, 0, 0, 0])[:4]) for item in group]) or tuple(region.get("bbox") or [0, 0, 0, 0])
+        segment = dict(region)
+        segment["children"] = group
+        segment["bbox"] = list(bbox)
+        segment["sample_text"] = [str(item.get("text") or item.get("ocr_text") or "").strip() for item in group if str(item.get("text") or item.get("ocr_text") or "").strip()][:8]
+        payloads.append(
+            _region_payload(
+                segment,
+                key=f"main_content_{idx}",
+                label=f"main content subregion {idx + 1}",
+                cursor_target=cursor_target,
+                order=3,
+            )
+        )
+    return payloads
+
+
+def _region_payload(
+    region: Dict[str, Any],
+    *,
+    key: str,
+    label: str,
+    cursor_target: Dict[str, Any],
+    order: int = 0,
+) -> Dict[str, Any]:
+    bbox = [int(v) for v in (region.get("bbox") or [0, 0, 0, 0])[:4]]
+    cursor_macro = str(cursor_target.get("parent_macro_region_id") or "")
+    cursor_region_type = str(cursor_target.get("parent_macro_region_type") or "")
+    cursor_in_region = cursor_macro == str(region.get("id") or "") or cursor_region_type == str(region.get("type") or "")
+    return {
+        "key": key,
+        "label": label,
+        "type": region.get("type"),
+        "id": region.get("id"),
+        "bbox": bbox,
+        "order": order,
+        "element_count": region.get("element_count", 0),
+        "ocr_line_count": region.get("ocr_line_count", 0),
+        "sample_text": region.get("sample_text") or [],
+        "children": region.get("children") or [],
+        "cursor": cursor_target if cursor_in_region else {},
+    }
+
+
+def _neighbor_summaries(segment: Dict[str, Any], segments: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    sx1, sy1, sx2, sy2 = segment["bbox"]
+    neighbors = []
+    for other in segments:
+        if other["key"] == segment["key"]:
+            continue
+        ox1, oy1, ox2, oy2 = other["bbox"]
+        relation = []
+        if ox2 <= sx1:
+            relation.append("left")
+        if ox1 >= sx2:
+            relation.append("right")
+        if oy2 <= sy1:
+            relation.append("above")
+        if oy1 >= sy2:
+            relation.append("below")
+        neighbors.append({"key": other["key"], "label": other["label"], "relative_position": " ".join(relation) or "overlapping/nearby"})
+    return neighbors[:6]
+
+
+def _segment_fallback_description(segment: Dict[str, Any]) -> str:
+    text = ", ".join(str(item) for item in (segment.get("sample_text") or [])[:6] if str(item).strip())
+    label = str(segment.get("label") or "segment")
+    element_count = int(segment.get("element_count") or len(segment.get("children") or []) or 0)
+    ocr_count = int(segment.get("ocr_line_count") or 0)
+    type_counts = segment.get("element_types") or {}
+    if not type_counts:
+        type_counts = dict(Counter(str((item.get("type") or item.get("kind") or "element")).strip() for item in segment.get("children") or [] if str((item.get("type") or item.get("kind") or "")).strip()).most_common(4))
+    type_text = ", ".join(f"{count} {kind}" for kind, count in list(type_counts.items())[:4] if kind)
+    parts = [f"{label} spans region {segment.get('bbox')}."]
+    if element_count or ocr_count:
+        parts.append(f"It contains {element_count} detected items and {ocr_count} OCR text lines.")
+    if type_text:
+        parts.append(f"Detected content types include {type_text}.")
+    if text:
+        parts.append(f"Visible text includes {text}.")
+    else:
+        parts.append("Little readable text is visible in this region.")
+    cursor = segment.get("cursor") or {}
+    cursor_text = str(cursor.get("element_text") or cursor.get("element_type") or "").strip()
+    if cursor_text:
+        parts.append(f"The cursor is over {cursor_text}.")
+    return " ".join(parts)
+
+
+def _demo_relationship_fallback(segments: Sequence[Dict[str, Any]]) -> str:
+    if not segments:
+        return ""
+    labels = [str(segment.get("label") or segment.get("key") or "region") for segment in segments[:6]]
+    if len(labels) == 1:
+        return f"The visible interface is primarily organized around the {labels[0]} region."
+    return "The visible interface is organized into " + ", ".join(labels[:-1]) + f", and {labels[-1]}. These regions together describe the current screen layout and reading order."
+
+
+def _looks_like_prompt_placeholder(text: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(text or "").strip().lower())
+    if not normalized:
+        return True
+    return (
+        normalized.startswith("describe the ")
+        or normalized.startswith("describe how the visible ui segments")
+        or normalized.endswith("segment in detail.")
+        or normalized.startswith("relationships describe")
+    )
+
+
+def _format_demo_results_markdown(frame_id: int, timestamp_sec: float, results: Dict[str, Dict[str, Any]]) -> str:
+    lines = [f"# Frame {frame_id} Demo Results", "", f"Timestamp: {timestamp_sec:.2f}s", ""]
+    for key, item in results.items():
+        label = str(item.get("label") or key).replace("_", " ").title()
+        lines.append(f"## {label}")
+        bbox = item.get("bbox")
+        if bbox:
+            lines.append(f"Region: `{bbox}`")
+        description = str(item.get("description") or "").strip()
+        lines.append(description or "No detailed description was generated.")
+        lines.append("")
+    return "\n".join(lines).strip()
+
+
+def _format_deferred_results_markdown(frame_id: int, timestamp_sec: float, summary: str) -> str:
+    return "\n".join(
+        [
+            f"# Frame {frame_id} Deferred Results",
+            "",
+            f"Timestamp: {timestamp_sec:.2f}s",
+            "",
+            str(summary or "Detailed LLM work was deferred because a newer near-duplicate frame was pending.").strip(),
+        ]
+    ).strip()
+
+
+def _mean_layout_confidence(layout_groups: Sequence[LayoutGroup]) -> float:
+    scores = [float(group.score or 0.0) for group in layout_groups]
+    return sum(scores) / max(1, len(scores))
 
 
 def _build_nested_reading_nodes(elements: Sequence[UIElement]) -> List[Dict[str, Any]]:
@@ -1773,6 +2305,8 @@ def _ocr_lines_from_elements(elements: Sequence[UIElement]) -> List[Dict[str, An
 def _normal_element_type(item: UIElement) -> str:
     raw = str(item.type or "").strip().lower().replace("-", "_")
     text = str(item.text or item.caption or "").strip().lower()
+    if _is_doclayout_element(item):
+        return raw or "layout_block"
     if raw in {"input", "input_box", "text_input", "textfield", "textbox"}:
         return "input"
     if raw in {"icon_button", "button"} or (item.interactive and any(term in text for term in ("submit", "save", "send", "next", "back"))):
@@ -1825,6 +2359,10 @@ def _cursor_action_text(cursor_target: Dict[str, Any], change_type: str) -> str:
 def _is_ocr_element(item: UIElement) -> bool:
     source = str(item.source or "").lower()
     return source.startswith("ocr") or str(item.id or "").startswith("demo_ocr")
+
+
+def _is_doclayout_element(item: UIElement) -> bool:
+    return str(item.source or "").lower().startswith("doclayout")
 
 
 def _reading_order_key(item: UIElement) -> Tuple[int, int, str]:

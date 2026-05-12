@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import unittest
+import threading
+import time
 from unittest.mock import patch
 
 import cv2
@@ -8,7 +10,6 @@ import numpy as np
 
 from real_time_mode.mode_router import ModeRouter
 from real_time_mode.ocr_adapter import OCRResult
-from real_time_mode.omniparser_adapter import ParsePayload
 from real_time_mode.pipeline import DemoAnalyzerPipeline
 from real_time_mode.frame_summarizer import FrameSummaryRequest
 from real_time_mode.slide_adapter import SlideAnalysis, SlideLayoutBlock, SuryaSlideAnalyzer
@@ -128,12 +129,14 @@ class FakeMacro:
         ]
 
 
-class FakeOmni:
+class FakeDocLayout:
     def __init__(self):
         self.calls = 0
         self.last_regions = []
 
-    def parse_regions(self, frame_bgr, regions):
+    def detect_regions(self, frame_bgr, regions, *, frame_id=0, timestamp_sec=0.0):
+        from real_time_mode.doclayout_adapter import DocLayoutPayload
+
         self.calls += 1
         self.last_regions = list(regions)
         elements = []
@@ -141,16 +144,16 @@ class FakeOmni:
             x1, y1, x2, y2 = [int(v) for v in region]
             elements.append(
                 UIElement(
-                    id="",
-                    type="button",
-                    bbox=(max(0, x1 + 4), max(0, y1 + 4), min(x2, x1 + 80), min(y2, y1 + 30)),
-                    text=f"Button {idx}",
-                    interactive=True,
-                    confidence=0.9,
-                    source="fakeomni",
+                    id=f"doc_{idx}",
+                    type="text_block",
+                    bbox=(max(0, x1 + 8), max(0, y1 + 8), min(x2, x1 + 120), min(y2, y1 + 44)),
+                    text="",
+                    interactive=False,
+                    confidence=0.86,
+                    source="doclayout_yolo",
                 )
             )
-        return ParsePayload(elements=elements, overlays=[], provider="fakeomni", confidence=0.9)
+        return DocLayoutPayload(elements=elements, provider="fake_doclayout", confidence=0.86)
 
 
 class FakeSummarizer:
@@ -163,6 +166,22 @@ class FakeSummarizer:
     def summarize(self, request: FrameSummaryRequest):
         self.requests.append(request)
         return f"{request.heuristic_summary} [memory={len(request.recent_memory)}]"
+
+
+class SlowSummarizer:
+    def __init__(self, delay=1.0):
+        self.delay = float(delay)
+        self.calls = 0
+        self.entered = threading.Event()
+
+    def warmup(self):
+        return None
+
+    def summarize(self, request: FrameSummaryRequest):
+        self.calls += 1
+        self.entered.set()
+        time.sleep(self.delay)
+        return "slow llm finished"
 
 
 def frame(marker: int, *, patch=None):
@@ -181,9 +200,9 @@ class PipelineModesTests(unittest.TestCase):
         return DemoAnalyzerPipeline(
             siglip_classifier=FakeSiglip(),
             stt_store=UtteranceStore(),
-            omniparser=FakeOmni(),
             cursor_analyzer=FakeCursorAnalyzer(cursor_boxes),
             macro_layout_detector=FakeMacro(),
+            doclayout_detector=FakeDocLayout(),
             ocr_extractor=FakeOCR(),
             slide_analyzer=FakeSlide(),
             mode_router=ModeRouter(immediate_switch_confidence=0.8, sticky_confidence_floor=0.45),
@@ -238,10 +257,11 @@ class PipelineModesTests(unittest.TestCase):
         self.assertEqual(second.mode, "demo")
         self.assertTrue(second.visual_change)
         self.assertFalse(second.debug["rfdetr_ran"])
-        self.assertTrue(second.debug["omniparser_ran"])
+        self.assertFalse(second.debug["omniparser_ran"])
+        self.assertTrue(second.debug["doclayout_ran"])
         self.assertTrue(second.debug["crop_bbox"])
 
-    def test_demo_ocr_is_structured_with_omniparser_elements(self):
+    def test_demo_ocr_is_structured_with_doclayout_elements(self):
         pipeline, _ = self.make_pipeline()
         record = pipeline.ingest_frame(frame(30, patch=(120, 90, 150, 120, 60)), timestamp_sec=0.0)
 
@@ -249,6 +269,7 @@ class PipelineModesTests(unittest.TestCase):
         self.assertTrue(record.debug["ocr_ran"])
         self.assertIn("Search orders", record.visual_payload["ocr_text"])
         self.assertEqual(record.confidence["ocr_provider"], "ocr:rapidocr")
+        self.assertEqual(record.confidence["doclayout_provider"], "fake_doclayout")
         structure = record.visual_payload["screen_structure"]
         self.assertTrue(structure["reading_order"])
         main_region = next(item for item in structure["regions"] if item["type"] == "main_content")
@@ -296,8 +317,88 @@ class PipelineModesTests(unittest.TestCase):
         second = pipeline.ingest_frame(frame(30, patch=(126, 96, 136, 106, 20)), timestamp_sec=1.5)
         self.assertIn("[memory=0]", first.summary)
         self.assertIn("[memory=1]", second.summary)
-        self.assertEqual(len(summarizer.requests[0].recent_memory), 0)
-        self.assertGreaterEqual(len(summarizer.requests[1].recent_memory), 1)
+        self.assertTrue(any(len(request.recent_memory) == 0 for request in summarizer.requests))
+        self.assertTrue(any(len(request.recent_memory) >= 1 for request in summarizer.requests))
+
+    def test_pending_newer_frame_skips_near_duplicate_llm_work(self):
+        pipeline, summarizer = self.make_pipeline()
+        pipeline.ingest_frame(frame(30, patch=(120, 90, 150, 120, 60)), timestamp_sec=0.0)
+        request_count = len(summarizer.requests)
+        pipeline.summary_skip_checker = lambda _state: True
+
+        second = pipeline.ingest_frame(frame(30, patch=(126, 96, 136, 106, 20)), timestamp_sec=1.5)
+
+        self.assertEqual(len(summarizer.requests), request_count)
+        self.assertEqual(second.debug["llm_policy"], "skipped_near_duplicate_pending_newer_frame")
+        self.assertIn("Deferred Results", second.summary)
+
+    def test_inflight_llm_can_defer_when_newer_near_duplicate_arrives(self):
+        pipeline, _ = self.make_pipeline()
+        pipeline.ingest_frame(frame(30, patch=(120, 90, 150, 120, 60)), timestamp_sec=0.0)
+        slow = SlowSummarizer(delay=1.0)
+        pipeline.frame_summarizer = slow
+        newer_waiting = {"value": False}
+        pipeline.summary_skip_checker = lambda _state: newer_waiting["value"]
+
+        result = {}
+
+        def run_frame():
+            result["record"] = pipeline.ingest_frame(frame(30, patch=(126, 96, 136, 106, 20)), timestamp_sec=1.5)
+
+        thread = threading.Thread(target=run_frame)
+        started = time.perf_counter()
+        thread.start()
+        self.assertTrue(slow.entered.wait(timeout=2.0))
+        newer_waiting["value"] = True
+        thread.join(timeout=2.0)
+        elapsed = time.perf_counter() - started
+
+        self.assertFalse(thread.is_alive())
+        self.assertLess(elapsed, 0.9)
+        record = result["record"]
+        self.assertIn("Deferred Results", record.summary)
+        self.assertEqual(record.debug["llm_policy"], "skipped_inflight_near_duplicate_pending_newer_frame")
+
+    def test_deferred_frame_is_paired_with_next_near_duplicate_summary(self):
+        pipeline, summarizer = self.make_pipeline()
+        pipeline.ingest_frame(frame(30, patch=(120, 90, 150, 120, 60)), timestamp_sec=0.0)
+        pipeline.summary_skip_checker = lambda _state: True
+        pipeline.ingest_frame(frame(30, patch=(126, 96, 136, 106, 20)), timestamp_sec=1.5)
+        pipeline.summary_skip_checker = lambda _state: False
+
+        pipeline.ingest_frame(frame(30, patch=(132, 102, 142, 112, 80)), timestamp_sec=3.0)
+
+        paired_requests = [
+            request
+            for request in summarizer.requests
+            if (request.current_payload or {}).get("previous_frame")
+        ]
+        self.assertTrue(paired_requests)
+        self.assertIn(paired_requests[-1].current_payload["summary_task"], {"demo_region", "demo_relationship"})
+
+    def test_demo_ocr_can_override_misrouted_code_frame(self):
+        pipeline, _ = self.make_pipeline()
+
+        class CodeLikeOCR(FakeOCR):
+            def extract_regions(self, frame_bgr, regions, *, frame_type):
+                return OCRResult(
+                    text="OPEN EDITORS\nmeet_agent.py\nimport numpy as np\nfrom pydantic import BaseModel\ndef analyze():\n    return None",
+                    lines=[
+                        {"text": "OPEN EDITORS", "box": [8, 20, 120, 40], "confidence": 0.9, "source": "ocr:fake"},
+                        {"text": "import numpy as np", "box": [80, 80, 220, 100], "confidence": 0.9, "source": "ocr:fake"},
+                        {"text": "from pydantic import BaseModel", "box": [80, 105, 250, 125], "confidence": 0.9, "source": "ocr:fake"},
+                        {"text": "def analyze():", "box": [80, 130, 200, 150], "confidence": 0.9, "source": "ocr:fake"},
+                        {"text": "return None", "box": [100, 155, 200, 175], "confidence": 0.9, "source": "ocr:fake"},
+                    ],
+                    provider="ocr:fake",
+                    confidence=0.9,
+                )
+
+        pipeline.ocr_extractor = CodeLikeOCR()
+        record = pipeline.ingest_frame(frame(30, patch=(120, 90, 150, 120, 60)), timestamp_sec=0.0)
+
+        self.assertEqual(record.mode, "code")
+        self.assertEqual(record.debug["route_override"], "demo_to_code_from_ocr")
 
     def test_demo_page_summary_filters_svgish_micro_labels(self):
         pipeline, _ = self.make_pipeline()

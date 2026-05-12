@@ -1,0 +1,16 @@
+{
+  "bbox": [
+    586,
+    674,
+    600,
+    696
+  ],
+  "confidence": 0.6370381712913513,
+  "motion_type": "stationary",
+  "hotspot": [
+    588,
+    676
+  ],
+  "type": "pointer",
+  "method": "yolo"
+}

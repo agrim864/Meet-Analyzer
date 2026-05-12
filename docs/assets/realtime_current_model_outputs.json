@@ -1,0 +1,111 @@
+{
+  "source_frame": "real_time_mode\\validation_runs_gpu\\browser_demo_gpu\\frames\\frame_1160.0s.png",
+  "macro_count": 3,
+  "doclayout_count": 7,
+  "ocr_line_count": 94,
+  "ocr_sample": "Release Notes:1.108.0\nrequirements.txt\nenv\nmeet_agent.py\nmeeting.mp4\nMEET-AGENT\nvenv\ndemo_out\nframes\naudio_16k_mono.wav\nchapters.json\nframe_analysis.json\nkeyframes.json\nmeeting_summary.C\\meet-age\nmoments.json\nstate.json\ntranscript.txt\nutterances.json\nenv\nmeet_agent.py\nmeeting.mp4\nrequirements.txt\nDEBUG CONSOLE\nFilter (e.g. text, lexclude,\\.\nOUTLINE\nTIMELINE\nLiveShare\n14°C\nSunny\n品口日口\nQmeet-agent\nTerminalHelp\nmeeting.mp4X\nrequirements.xt\n日\nRelease Notes: 1.108.0\nmeet_agent.py\nenv\nICAPPIntermships\nAf-chatiot-appliastiin - Wet\nsi-chatbot-application Over\n☆\nC\nprojectsicapp.co.in\nSchool\nChoose what to share with projects.icapp.co.in\nICAPP\nsarthak23490@itd.ac.in\nThe sitewilbe able to see tfe cnfients of your sceen\nWindow\nChrome Tab\nEntire Scneen\nHome\nreturn {5on.1\nssccpt Excepfion\nP915\nMyApplication\nstciee.sear\nIf atch\nct Tasks\nhttps://meet.google.com\nX\nnt\\demo_out\\keyframes.json\ntry:\nretum j\nTransaript\nAgrim Jindal (You, present.\nexsept Except\nMy Course Tasks\npess\nLogout\n#PATIEIT ME/AORY HAN",
+  "macro": [
+    {
+      "label": "header",
+      "bbox": [
+        0,
+        0,
+        1920,
+        132
+      ],
+      "score": 0.9828624410629272
+    },
+    {
+      "label": "left_sidebar",
+      "bbox": [
+        0,
+        207,
+        231,
+        1080
+      ],
+      "score": 0.7838918509483337
+    },
+    {
+      "label": "main_content",
+      "bbox": [
+        231,
+        132,
+        1920,
+        1080
+      ],
+      "score": 0.9828624410629272
+    }
+  ],
+  "doclayout": [
+    {
+      "type": "figure",
+      "bbox": [
+        232,
+        132,
+        1437,
+        886
+      ],
+      "confidence": 0.8908544778823853
+    },
+    {
+      "type": "figure",
+      "bbox": [
+        0,
+        207,
+        231,
+        962
+      ],
+      "confidence": 0.6113755106925964
+    },
+    {
+      "type": "text_block",
+      "bbox": [
+        66,
+        215,
+        192,
+        285
+      ],
+      "confidence": 0.23735840618610382
+    },
+    {
+      "type": "figure",
+      "bbox": [
+        1616,
+        472,
+        1747,
+        606
+      ],
+      "confidence": 0.20071761310100555
+    },
+    {
+      "type": "text_block",
+      "bbox": [
+        1306,
+        636,
+        1389,
+        651
+      ],
+      "confidence": 0.4272836148738861
+    },
+    {
+      "type": "text_block",
+      "bbox": [
+        60,
+        761,
+        185,
+        774
+      ],
+      "confidence": 0.23770210146903992
+    },
+    {
+      "type": "text_block",
+      "bbox": [
+        7,
+        888,
+        156,
+        904
+      ],
+      "confidence": 0.5524294972419739
+    }
+  ]
+}
